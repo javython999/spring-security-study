@@ -20,15 +20,33 @@ public class SecurityConfig {
         http
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                 .formLogin(Customizer.withDefaults());
+                /*
+                .formLogin(form -> form
+                        //.loginPage("/loginPage")
+                        .loginProcessingUrl("/loginProc")
+                        .defaultSuccessUrl("/")
+                        .failureUrl("/failed")
+                        .usernameParameter("userId")
+                        .passwordParameter("passwd")
+                        .successHandler((request, response, authentication) -> {
+                            System.out.println("authentication = " + authentication);
+                            response.sendRedirect("/home");
+                        })
+                        .failureHandler((request, response, exception) -> {
+                            System.out.println("exception = " + exception.getMessage());
+                            response.sendRedirect("/login");
+                        })
+                        .permitAll()
+                );
+                */
+
         return http.build();
     }
 
     @Bean
     public UserDetailsService userDetailsService() {
         UserDetails user = User.withUsername("user").password("{noop}1111").roles("USER").build();
-        UserDetails user1 = User.withUsername("user1").password("{noop}1111").roles("USER").build();
-        UserDetails user2 = User.withUsername("user2").password("{noop}1111").roles("USER").build();
-        return new InMemoryUserDetailsManager(user, user1, user2);
+        return new InMemoryUserDetailsManager(user);
     }
 }
 

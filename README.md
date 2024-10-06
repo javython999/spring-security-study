@@ -100,3 +100,40 @@ public InMemoryUserDetailsManager inMemoryUserDetailsManager() {
     return new InMemoryUserDetailsManager(user);
 }
 ```
+
+---
+
+## 인증 프로세스
+### 폼 인증 - formLogin()
+* 폼 인증
+  * HTTP 기반의 폼 로그인 인증 메커니즘을 활성화하는 API로서 사용자 인증을 위한 사용자 정의 로그인 페이지를 쉽게 구현할 수 있다.
+  * 기본적으로 스프링 시큐리티가 제공하는 기본 로그인 페이지를 사용하며 사용자 이름과 비밀번호 필드가 포함된 간단한 로그인 양식을 제공한다.
+  * 사용자는 웹 폼을 통해 자격증명(사용자 이름과 비밀번호)을 제공하고 Spring Security는 HttpServletRequest에서 이 값을 읽어 온다.
+
+* formLogin() API
+  * FormLoginConfigurer 설정 클래스를 통해 여러 API들을 설정할 수 있다.
+  * 내부적으로 UsernamePasswordAuthenticationFilter가 생성되어 폼 방식의 인증 처리를 담당하게 된다.
+
+```java
+HttpSecurity.formLogin(httpSecurityFormLoginConfigurer -> httpSecurityFormLoginConfigurer
+        .loginPage("/loginPage")                        // 사용자 정의 로그인 페이지로 전환, 기본 로그인 페이지 무시
+        .loginProcessingUrl("/loginProc")               // 사용자 이름과 비밀번호를 검증할 URL 지정 (form action)
+        .defaultSuccessUrl("/", [alwaysUse])            // 로그인 성공 이후 이동 페이지, alwaysUse가 true이면 무조건 지정된 위치로 이동 (기본값 false)
+                                                        // 인증 전에 보안이 필요한 페이지를 방문하다 인증에 성공한 경유이면 이전 위치로 리다이렉트 됨
+        .failureUrl("/failed")                          // 인증에 실패할 경우 사용자에게 보내질 URL을 지정, 기본 값은 "/login?error"이다.
+        .usernameParameter("username")                  // 인증을 수행할 때 사용자 이름(아이디)를 찾기 위해 확인하는 HTTP 매개변수 설정, 기본값은 username
+        .userPasswordParameter("password")              // 인증을 수행할 때 비밀번호를 찾기 위해 확인하는 HTTP 매개변수 설정, 기본값은 password
+        .failureHandler(AuthenticationFailHandler)      // 인증 실패시 사용할 AuthenticationFailureHandler를 지정
+                                                        // 기본값은 SimpleUrlAuthenticationFailureHandler를 사용하여 "/login?error"로 리다이렉트 함
+        .successHandler(AuthenticationSuccessHandler)   // 인증 성공할 시 사용할 AuthenticationSuccessHandler를 지정
+                                                        // 기본값은 SavedRequestAwareAuthenticationSuccessHandler이다.
+        .permitAll()                                    // failureUrl(), loginPage(), loginProcessingUrl()에 대한 URL에 모든 사용자의 접근을 허용함.
+);
+```
+
+### 폼 인증 필터 - UsernamePasswordAuthenticationFilter
+* UsernamePasswordAuthenticationFilter
+  * 스프링 시큐리티는 AbstractAuthenticationProcessingFilter 클래스를 사용자의 자격 증명을 인증하는 기본 필터로 사용한다.
+  * UsernamePasswordAuthenticationFilter는 AbstractAuthenticationProcessingFilter를 확장한 클래스로서 HttpServletRequest에서 제출된 사용자 이름과 비밀번호로부터 인증을 수행한다.
+  * 인증 프로세스가 초기화 될 때 로그인 페이지와 로그아웃 페이지 생성을 위한 DefaultLoginPageGeneratingFilter 및 DefaultLogoutPageGeneratingFilter가 초기화 된다.
+  
