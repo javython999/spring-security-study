@@ -136,4 +136,79 @@ HttpSecurity.formLogin(httpSecurityFormLoginConfigurer -> httpSecurityFormLoginC
   * 스프링 시큐리티는 AbstractAuthenticationProcessingFilter 클래스를 사용자의 자격 증명을 인증하는 기본 필터로 사용한다.
   * UsernamePasswordAuthenticationFilter는 AbstractAuthenticationProcessingFilter를 확장한 클래스로서 HttpServletRequest에서 제출된 사용자 이름과 비밀번호로부터 인증을 수행한다.
   * 인증 프로세스가 초기화 될 때 로그인 페이지와 로그아웃 페이지 생성을 위한 DefaultLoginPageGeneratingFilter 및 DefaultLogoutPageGeneratingFilter가 초기화 된다.
+
+### 기본 인증 - httpBasic()
+* HTTP는 액세스 제어와 인증을 위한 프레임워크를 제공하며 가장 일반적인 인증방식은 'Basic' 인증 방식이다.
+* RFC7235 표준이며 인증 프로토콜은 HTTP 인증 헤더에 기술 되어있다.
+
+1. 클라이언트는 인증정보 없이 서버로 접속을 시도한다.
+2. 서버가 클라이언트에게 인증요구를 보낼 때 401 Unauthorized 응답과 함께 WWW-Authenticate 헤더를 기술해 realm(보안영역)과 Basic 인증방법을 보냄
+3. 클라이언트가 서버로 접속할 때 Base64로 username과 password를 인코딩하고 Authorization 헤더에 담아서 요청함
+4. 성공적으로 완료되면 정상적인 상태 코드를 반환한다.
+
+> 주의사항
+* base-64 인코딩된 값은 디코딩이 가능하기 때문에 인증정보가 노출된다.
+* HTTP Basic 인증은 반드시 HTTPS와 같이 TLS 기술과 함께 사용해야 한다.
+
+
+* httpBasic() API
+  * HttpBasicConfigurer 설정 클래스를 통해 여러 API들을 설정할 수 있다.
+  * 내부적으로 BasicAuthenticationFilter가 생성되어 기본 인증 방식의 인증 처리를 담당하게 된다.
+
+```java
+HttpSecurity.httpBasic(HttpSecurityHttpBasicConfigurer -> httpSecurityHttpBasicConfigurer
+        .realmName("security")                              // HTTP 기본 영역을 설정한다.
+        .authenticationEntryPoint(
+                (request, response, authException) -> {})   // 인증 실패 시 호출되는 AuthenticationEntryPoint 이다.
+                                                            // 기본값은 "Realm" 영역으로 BasicAuthenticationEntryPoint가 사용된다.
+);
+```
+
+### BasicAuthenticationFilter
+* BasicAuthenticationFilter
+  * 이 필터는 기본 인증 서비스를 제공하는 데 사용된다.
+  * BasicAuthenticationConverter를 사용해서 요청 헤더에 기술된 인증정보의 유효성을 체크하며 Base64 인코딩된 username과 password를 추출한다.
+  * 인증 이후 세션을 사용하는 경우와 사용하지 않는 경우에 따라 처리되는 흐름에 차이가 있다. 세션을 사용하는 경우 매 요청 마다 인증과정을 거치지 않으나 세션을 사용하지 않는 경우 매 요청마다 인증과정을 거쳐야 한다.
+
+### RememberMe 인증
+* RememberMe
+  * 사용자가 웹 사이트나 애플리케이션에 로그인할 때 자동으로 로그인 정보를 기억하는 기능이다.
+  * UsernamePasswordAuthenticationFilter와 함께 사용되며, AbstractAuthenticationProcessingFilter 슈퍼클레스에서 훅을 통해 구현된다.
+    * 인증 성공 시 RememberMeService.loginSuccess()를 통해 RememberMe 토큰을 생성하고 쿠키로 전달 한다.
+    * 인증 실패 시 RememberMeService.logingFail()를 통해 쿠키를 지운다.
+    * LogoutFilter와 연계해서 로그아웃 시 쿠키를 지운다.
+
+* 토큰 생성
+  * 기본적으로 암호화된 토큰으로 생성 되어지며 브라우저에 쿠키를 보내고, 향후 세션에 이 쿠키를 감지하여 자동 로그인이 이루어지는 방식으로 달성된다.
+    * base64(username + ":" + expirationTime + ":" + algorithmName + ":" + algorithmHex(username + ":" + expirationTime + ":" + password + ":" + key))
+      * username: UserDetailsService로 식별 가능한 사용자 이름
+      * password: 검색된 UserDetails에 일치하는 비밀번호
+      * expirationTime: remember-me 토큰이 만료되는 날짜와 시간, 밀리초로 표현
+      * key: remember-me 토큰의 수정을 방지하기 위한 개인키
+      * algorithmName: remember-me 토큰 서명을 생성하고 검증하는 데 사용되는 알고리즘(기본적으로 SHA-256 알고리즘을 사용)
+
+* RememberMeService 구현체
+  * TokenBasedRememberMeServices - 쿠키 기반 토큰의 보안을 위해 해싱을 사용한다.
+  * PersistentTokenBasedRememberMeServices - 생성된 토큰을 저장하기 위해 데이터베이스나 다른 영구 저장 매체를 사용한다.
+  * 두 구현 모두 사용자의 정보를 검색하기 위한 UserDetailsService가 필요하다.
+
+* rememberMe() API
+  * RememberMeConfigurer 설정 클래스를 통해 여러 API를 설정할 수 있다.
+  * 내부적으로 RememberMeAuthenticationFilter가 생성되어 자동 인증 처리를 담당하게 된다.
+
+```java
+http.rememberMe(httpSecurityRmemeberMeConfigurer -> httpSecurityRememberMeConfigurer
+        .alwaysRemember(true)                   // "기억하기(remember-me)" 매개변수가 설정되지 않을 때에도 쿠키가 항상 생성되어야 하는지에 대한 여부를 나타낸다.
+        .tokenValiditySeconds(3600)             // 토큰이 유효한 시간(초 단위)을 지정할 수 있다.
+        .userDetailService(userDetailService)   // UserDetails를 조회하기 위해 사용되는 UserDetailsService를 지정한다.
+        .rememberMeParameter("remember")        // 로그인 시 사용자를 기억하기 위해 사용되는 HTTP 매개변수이며 기본값은 'remember-me'이다.
+        .rememberMeCookieName("remember")       // 기억하기(remember-me) 인증을 위한 토큰을 저장하는 쿠키 이름이며 기본 값은 'remember-me'이다.
+        .key("security")                        // 기억하기(remember-me) 인증을 위해 생성된 토큰을 식별하는 키를 설정한다.
+);
+```
+
+### RememberMeAuthenticationFilter
+* RememberMeAuthenticationFilter
+  * securityContextHolder에 Authentication이 포함되지 않은 경우 실행되는 필터이다.
+  * 세션이 만료되었거나 애플리케이션 종료로 인해 인증 상태가 소멸된 경우 토큰 기반 인증을 사용해 유효성을 검사하고 토큰이 검증되면 자동 로그인 처리를 수행한다.
   

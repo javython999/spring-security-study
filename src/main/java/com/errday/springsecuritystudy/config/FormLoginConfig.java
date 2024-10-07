@@ -1,4 +1,4 @@
-package com.errday.springsecuritystudy;
+package com.errday.springsecuritystudy.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,14 +11,13 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 
-@Configuration
-@EnableWebSecurity
-public class SecurityConfig {
+//@Configuration
+//@EnableWebSecurity
+public class FormLoginConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+        http.authorizeRequests(auth -> auth.anyRequest().authenticated())
                 .formLogin(Customizer.withDefaults());
                 /*
                 .formLogin(form -> form
@@ -39,7 +38,6 @@ public class SecurityConfig {
                         .permitAll()
                 );
                 */
-
         return http.build();
     }
 
@@ -49,4 +47,3 @@ public class SecurityConfig {
         return new InMemoryUserDetailsManager(user);
     }
 }
-
