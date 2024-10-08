@@ -13,12 +13,20 @@ import org.springframework.security.web.SecurityFilterChain;
 
 //@Configuration
 @EnableWebSecurity
-public class FormLoginConfig {
+public class AnonymousConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.authorizeRequests(auth -> auth.anyRequest().authenticated())
-                .formLogin(Customizer.withDefaults());
+        http.authorizeRequests(auth -> auth
+                .requestMatchers("/anonymous").hasRole("GUEST")
+                .requestMatchers("/anonymousContext", "/authentication").permitAll()
+                .anyRequest().authenticated()
+            )
+            .formLogin(Customizer.withDefaults())
+            .anonymous(anonymous -> anonymous
+                .principal("guest")
+                .authorities("ROLE_GUEST")
+            );
         return http.build();
     }
 

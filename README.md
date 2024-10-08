@@ -211,4 +211,92 @@ http.rememberMe(httpSecurityRmemeberMeConfigurer -> httpSecurityRememberMeConfig
 * RememberMeAuthenticationFilter
   * securityContextHolder에 Authentication이 포함되지 않은 경우 실행되는 필터이다.
   * 세션이 만료되었거나 애플리케이션 종료로 인해 인증 상태가 소멸된 경우 토큰 기반 인증을 사용해 유효성을 검사하고 토큰이 검증되면 자동 로그인 처리를 수행한다.
-  
+
+### 익명 사용자 - Anonymous
+* 익명 사용자
+  * 스프링 시큐리티에서 '익명으로 인증된' 사용자와 인증되지 않은 사용자 간에 실제 개념적 차이는 없으며 단지 액세스 제어 속성을 구성하는 더 편리한 방법을 제공한다고 볼 수 있다.
+  * SecurityContextHolder가 항상 Authentication 객체를 포함하고 null을 포함하지 않는다는 규칙을 세우게 되면 클래스를 더 견고하게 작성할 수 있다.
+  * 인증 사용자와 익명 인증 사용자를 구분해서 어떤 기능을 수행하고자 할 때 유용할 수 있으며 익명 인증 객체를 세션에 저장하지 않는다.
+  * 익명 인증 사용자의 권한을 별도로 운용할 수 있다. 즉 인증된 사용자가 접근할 수 없더록 수성이 가능하다.
+
+```java
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    http.authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+      .formLogin(Customizer.withDefaults())
+      .anonymous(anonymous -> anonymous.principal("guest").authorities("GUEST")
+    );
+}
+```
+
+#### 스프링 MVC에서 익명 인증 사용하기
+* 스프링 MVC가 HttpServletRequest#getPrincipal을 사용하여 파라미터를 해결하는데 요청이 익명일 때 이 값은 null 이다
+```java
+public String method(Authentication authentication) {
+    if (authentication instanceof AnonymousAuthenticationToken) {
+        return "anonymous";
+    } else {
+        return "not anonymous";
+    }
+}
+```
+
+* 익명 요청에서 Authentication을 얻고 싶다면 @CurrentSecurityContext를 사용하면 된다.
+* CurrentSecurityContextArgumentResolver에서 요청을 가로채어 처리한다
+```java
+public String method(@CurrentSecurityContext SecurityContext context) {
+    return context.getAuthentication().getName();
+}
+```
+
+#### AnonymousAuthenticationFilter
+* SecurityContextHolder에서 Authentication 객체가 없을 경우 감지하고 필요한 경우 새로운 Authentication 객체로 채운다.
+
+### 로그아웃 - logout
+* logout
+  * 스프링 시큐리티는 기본적으로 DefaultLogoutPageGeneratingFilter를 통해 로그아웃 페이지를 제공하며 "GET/logout" URL로 접근이 가능하다.
+  * 로그아웃 실행은 기본적으로 "POST/logout"으로만 가능하나 CSRF 기능을 비활성화 할 경우 혹은 RequestMatcher를 사용할 경우 GET, PUT, DELETE 모두 가능하다.
+  * 로그아웃 필터를 거치지 않고 스프링 MVC에 커스텀하게 구현할 수 있으며 로그인 페이지가 커스텀하게 생성될 경우 로그아웃 기능도 커스텀하게 구현해야 한다.
+
+* logout() API
+```java
+http.logout(httpSecurityLogoutConfigurer -> httpSecurityLogoutConfigurer
+        .logoutUrl("/logoutProc")   // 로그아웃이 발생하는 URL을 지정한다 (기본값은 "/logout" 이다)
+        .logoutRequestMatcher(new AntPathRequestMatcher("/logoutProc", "POST")) // 로그아웃이 발생하는 RequestMatcher를 지정한다. logoutUrl보다 우선적이다.
+                                                                                // Method를 지정하지 않으면 logout URL이 어떤 HTTP 메서드로든 요청될 때 로그아웃 할 수 있다.
+        .logoutSuccessUrl("/logoutSuccess")     // 로그아웃이 발생한 후 리다이렉션 될 URL이다. 기본값은 "login?logout"이다.
+        .logoutSuccessHandler((request, response, authentication) -> {  // 사용할 LogoutSuccessHandler를 설정한다. 
+            response.sendRedirect("/logoutSuccess")                     // 이것이 지정되면 logoutSuccessUrl(String)은 무시된다.
+        })
+        .deleteCookies("JSESSIONID", "CUSTOM_COOKIE")   // 로그아웃 성공시 제거될 쿠키의 이름을 지정할 수 있다.
+        .invalidateHttpSession(true) // HttpSession을 무효화해야 하는 경우 true(기본값), 그렇지 않으면 false
+        .clearAuthentication(true) // 로그아웃시 SecurityContextLogoutHandler가 인증(Authentication)을 삭제해야 하는지 여부를 명시한다.
+        .addLogoutHandler((request, response, authentication) -> {}) // 기존 로그아웃 핸들러 뒤에 새로운 LogoutHandler를 추가한다.
+        .permitAll() // loutoutUrl(), RequestMatcher()의 URL에 대한 모든 사용자의 접근을 허용함.
+)
+```
+
+### RequestCache / SavedRequest
+* RequestCache
+  * 인증 절차 문제로 리다이렉트 된 후에 이전에 했던 요청 정보를 담고 있는 'SavedRequest' 객체를 쿠키 혹은 세션에 저장하고 필요시 다시 가져와 실행하는 캐시 메커니즘이다.
+
+* SavedRequest
+  * SavedRequest는 로그인과 같은 인증 절차 후 사용자를 인증 이전의 원래 페이지로 안내하여 이전 요청과 관련된 여러 정보를 저장한다.
+
+* reqeustCache() API
+  * 요청 Url에 customParam=y라는 이름의 매개변수가 있는 경우에만 HttpSession에 저장된 SavedRequest을 꺼내오도록 설정할 수 있다(기본값은 "continue")
+```java
+HttpSessionRequestCache requestCache = new HttpRequestCache();
+requestCahce.setMatchingReqeustParam("customParam=y");
+http.reqeustCahce((cache) -> cache.requestCache(requestCache));
+```
+
+  * 요청을 지정하지 않도록 하려면 NullRequestCache 구현을 사용할 수 있다.
+```java
+HttpSessionRequestCache nullRequestCache = new NullRequestCache();
+http.reqeustCahce((cache) -> cache.requestCache(nullRequestCache));
+```
+
+### RequestCacheAwareFilter
+* ReqeustCacheAwareFilter는 이전에 저장했던 웹 요청을 다시 불러오는 역할을 한다.
+* SavedRequest가 현재 Request와 일치하면 이 요청을 필터 체인의 doFilter 메소드에 전달하고 SavedRequest가 없으면 필터는 원래 Request를 그대로 진행시킨다.
