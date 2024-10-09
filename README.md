@@ -300,3 +300,196 @@ http.reqeustCahce((cache) -> cache.requestCache(nullRequestCache));
 ### RequestCacheAwareFilter
 * ReqeustCacheAwareFilter는 이전에 저장했던 웹 요청을 다시 불러오는 역할을 한다.
 * SavedRequest가 현재 Request와 일치하면 이 요청을 필터 체인의 doFilter 메소드에 전달하고 SavedRequest가 없으면 필터는 원래 Request를 그대로 진행시킨다.
+
+---
+## 인증 아키텍처
+### Authentication
+* 인증은 특정 자원에 접근하려는 사람의 신원을 확인하는 방법을 의미한다.
+* 사용자 인증의 일반적인 방법은 사용자 이름과 비밀번호를 입력하게 하는 것으로서 인증이 수행되면 신원을 알고 권한 부여를 할 수 있다.
+* Authentication은 사용자의 인증 정보를 저장하는 토큰 개념의 객체로 활용되며 인증 이후 SecurityContext에 저장되어 전역적으로 참조가 가능하다.
+
+#### 구조
+```java
+public interface Principal { // 자바
+    boolean implies(Subject);
+    String getName();
+    boolean equals(Object);
+    int hasCode();
+    String toString();
+}
+```
+
+```java
+public interface Authentication extends Principal, Serializable { // 스프링
+  Collection<? extends GrantedAuthority> getAuthorities();
+  Object getCredentials();
+  Object getDetails();
+  Object getPrincipal();
+  boolean isAuthenticated();
+  void setAuthenticated(boolean isAuthenticated) throws IllegalArgumentException;
+}
+```
+* getAuthorities(): 인증 주체(principal)에게 부여된 권한을 나타낸다.
+* getCredentials(): 인증 주체가 올바른 것을 증명하는 자격 증명으로서 대개 비밀번호를 의미한다.
+* getDetails(): 인증 요청에 대한 추가적인 세부 사항을 저장한다. IP주소, 인증서 일련 번호 등이 될 수 있다.
+* getPrincipal(): 인증 주체를 의미하며 인증 요청의 경우 사용자 이름을, 인증 후에는 UserDetails 타입의 객체가 될 수 있다.
+* isAuthenticated(): 인증 상태를 반환 한다.
+* setAuthenticated(): 인증 상태를 설정한다.
+
+#### 인증 절차 흐름
+1. 클라이언트가 로그인 요청 Get / login?username + password
+2. AuthenticationFilter가 Authentication 객체 생성
+   * 인증 처리 전 Authentication 객체를 생성(사용자가 입력한 username, password 설정)하고 AuthenticationManager에게 전달
+3. Authentication 객체를 AuthenticationManager에게 전달
+   * AuthenticationManager가 인증 처리 수행
+   * 이 단계까지가 인증처리 전 단계
+4. AuthenticationManager 인증처리 후 Authentication 객체를 생성하고 다시 AuthenticationFilter에게 전달
+   * 객체는 인증된 정보를 기반으로 새로운 Authentication 생성한다. 
+     * principal: 시스템에서 가지고 온 사용자 정보가 저장되며 주로 UserDetails 객체이다.
+     * credentials: 주로 비밀번호이며 사용자가 인증된 후에 이 정보가 지워져 노출되지 않도록 한다.
+     * authorities: 사용자에게 부여된 권한으로 GrantedAuthority 타입의 컬렉션을 제공한다.
+
+### 인증 컨텍스트 - SecurityContext / SecurityContextHolder - 1
+* SecurityContext
+  * Authentication 저장: 현재 인증된 사용자의 Authentication 객체를 저장한다.
+  * ThreadLocal 저장소 사용: SecurityContextHolder를 통해 접근되며 ThreadLocal 저장소를 사용해 각 스레드가 자신만의 보안 컨텍스트를 유지한다.
+  * 애플리케이션 전반에 걸친 접근성: 애플리케이션의 어느 곳에서 접근 가능하며 현재 사용자의 인증 상태나 권한을 확인하는 데 사용된다.
+
+* SecurityContextHolder
+  * SecurityContext 저장: 현재 인증된 사용자의 Authentication 객체를 담고 있는 SecurityContext 객체를 저장한다.
+  * 전략 패턴 사용: 다양한 저장 전략을 지원하기 위해 SecurityContextHolderStrategy 인터페이스를 사용한다.
+  * 기본 전략: MODE_THREADLOCAL
+  * 전락 모드 직접 지정: SecurityContextHolder.setStrategyName(String)
+
+* SecurityContextHolder 저장 모드
+  * MODE_THREADLOCAL: 기본 모드로, 각 스레드가 독립적인 보안 컨텍스트를 가집니다. 대부분의 서버 환경에 적합하다.
+  * MODE_INHERITABLETHREDLOCAL: 부모 스레드로부터 자식 스레드로 보안 컨텍스트가 상속되며 작업을 스레드 간 분산 실행하는 경우 유용할 수 있다.
+  * MODE_GLOBAL: 전역적으로 단일 보안 컨텍스트를 사용하며 서버 환경에서는 부적합하며 주로 간단한 애플리케이션에 적합하다.
+
+#### 구조
+```java
+
+public interface SecurityContextHolderStrategy {
+    void clearContext();
+
+    SecurityContext getContext();
+
+    default Supplier<SecurityContext> getDeferredContext() {
+        return this::getContext;
+    }
+
+    void setContext(SecurityContext context);
+
+    default void setDeferredContext(Supplier<SecurityContext> deferredContext) {
+        this.setContext((SecurityContext)deferredContext.get());
+    }
+
+    SecurityContext createEmptyContext();
+}
+
+```
+* clearContext(): 컨텍스트를 삭제한다.
+* getContext(): 현재 컨텍스트를 얻는다.
+* getDeferredContext(): 현재 컨텍스트를 반환하는 Supplier를 얻는다.
+* setContext(): 현재 컨텍스트를 저장한다.
+* setDeferredContext(): 현재 컨텍스트를 반환하는 Supplier를 저장한다.
+* createEmptyContext(): 새롭고 비어있는 컨텍스트를 생성한다.
+
+#### SecurityContext 참조 및 삭제
+* SecurityContext 참조 - SecurityContextHolder.getContextHolderStrategy().getContext();
+* SecurityContext 삭제 - SecurityContextHolder.getContextHolderStrategy().clearContext();
+
+#### SecurityContextHolder & SecurityContext 구조
+* 스레드 마다 할당 되는 전용 저장소에 SecurityContext를 저장하기 때문에 동시성의 문제가 없다.
+* 스레드 풀에서 운용되는 스레드일 경우 새로운 요청이더라도 기존의 ThreadLocal이 재사용될 수 있기 때문에 클라이언트로 응답 직전에 SecurityContext를 삭제해 주고 있다.
+
+#### SecurityContextHolderStrategy 사용하기
+* 기본 방식 
+```java
+SecurityContext context = SecurityContextHolder.createEmptyContext();
+context.setAuthentication(authentication);
+SecurityContextHolder.setContext(context);
+```
+위 코드는 SecurityContextHolder를 통해 SecurityContext에 정적으로 접근할 때 여러 애플리케이션 컨텍스트가 SecurityContextHolderStrategy를 지정하려고 할 때 경쟁 조건을 만들 수 있다.
+
+```java
+SecurityContextHolderStrategy securityContextHolderStrategy = SecurityContextHolder.getContextHolderStrategy();
+SecurityContext context = securityContextHolderStrategy.createEmptyContext();
+context.setAuthentication(authentication);
+securityContextHolderStrategy.setContext(context);
+```
+애플리케이션이 SecurityContext를 정적으로 접근하는 대신 SecurityContextHolderStrategy를 자동으로 주입이 될 수 있도록 한다.
+각 애플리케이션 컨텍스트는 자신에게 가장 적합한 보안 전략을 사용할 수 있게 된다.
+
+### 인증 관리자 - AuthenticationManager
+* AuthenticationManager
+  * 인증 필터로부터 Authentication 객체를 전달 받아 인증을 시도하며, 성공할 경우 사용자 정보, 권한 등을 포함한 완전히 채워진 Authentication 객체를 반환한다.
+  * AuthenticationManager는 여러 AuthenticationProvider들을 관리하며 AuthenticationProvider 목록을 순차적으로 순회하며 인증 요청을 처리한다.
+  * AuthenticationProvider 목록 중에서 인증 처리 요건에 맞는 적절한 AuthenticationProvider를 찾아 인증처리를 위임한다.
+  * AuthenticationManagerBuilder에 의해 객체가 생성되며 주로 사용하는 구현체로 ProviderManager가 제공된다.
+
+* AuthenticationManagerBuilder
+  * AuthenticationManager 객체를 생성하며 UserDetailService 및 AuthenticationProvider를 추가할 수 있다.
+  * HttpSecurity.getSharedObject(AuthenticationManagerBuilder.class)를 통해 객체를 참조할 수 있다.
+
+#### AuthenticationManager 흐름도
+1. AuthenticationFilter라 사용자 입력정보를 기반으로 Authentication 객체를 만들어 AuthenticationManager에게 인증 위임
+2. AuthenticationManager는 사용자가 시도한 인증방법에 알 맞은 AuthenticationProvider를 찾아서 인증 위임
+3. AuthenticationProvider는 인증후 새로운 Authentication 객체를 생성해 AuthenticationManager에게 반환
+4. AuthenticationManager는 반환 받은 Authentication 객체를 AuthenticationFilter에게 반환
+
+* 선택적으로 부모 AuthenticationManager를 구성할 수 있으며 이 부모는 AuthenticationProvider가 인증을 수행할 수 없는 경우(OAuth2)에 추가적으로 탐색할 수 있다.
+* 일반적으로 AuthenticationProvider로부터 null이 아닌 응답을 받을 때까지 차례대로 시도하며 응답을 받지 못하면 ProviderNotFoundException과 함께 인증이 실패한다.
+
+#### AuthenticationManager 사용 방법 - HttpSecurity 사용
+
+```java
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    AuthenticationManagerBuilder authenticationManagerBuilder = http.getSharedObject(AuthenticationManagerBuilder.class);
+    AuthenticationManager authenticationManager = authenticationManagerBuilder.build();      // build()는 최초 한번 만 호출 해야 한다.
+    authenticationManager authenticationManager = authenticationManagerBuilder.getObject();  // build()후에는 getObject()로 참조해야 한다.
+  
+  
+  http.authorizeHttpRequest(auth -> auth
+          .requestMatcher("/api/loing").permitAll()
+          .anyRequest().authenticated())
+      .authenticationManager(authenticationManager)  // HttpSecurity에서 생성한 AuthentiactionManager를 저장한다.
+      .addFilterBefore(customFilter(http, authenticationManager), UsernamePasswordAuthenticationFilter.class);
+  
+  return http.build();
+}
+
+//@Bean으로 선언하면 안된다. AuthenticationManager는 빈이 아니기 때문에 주입받지 못한다.
+public CustomAuthenticationFilter customFilter(HttpSecurity http, AuthenticationManager authenticationManager) throws Exception {
+    CustomAUthenticationFilter customAUthenticationFilter = new CustomAuthenticationFilter(http);
+    customAUthenticationFilter.setAuthenticationManager(authenticationManager);
+    return customAUthenticationFilter;
+}
+```
+
+#### AuthenticationManager 사용 방법 - 직접 생성
+
+```java
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+  http.authorizeHttpRequest(auth -> auth.anyRequest().authenticated())
+      .formlogin(Customizer.withDefault)
+      .addFilterBefore(customFilter(), UsernamePasswordAuthenticationFilter.class);
+  return http.build();
+}
+
+
+@Bean // @Bean으로 선언이 가능하다.
+public CustsomAuthenticationFilter customFilter() {
+    List<AuthentcationProvider> list1 = List.of(new DaoAuthenticationProvider());
+    ProviderManager parent = new ProviderManager(list1);
+    List<AuthentcationProvider> list2 = List.of(new AnonymousAuthenticationProvider("key"), new CustomAuthenticationProvider());
+    Provider authenticationManager = new ProviderManager(list2, parent);
+    
+    CustomAuthenticationFilter customAuthenticationFilter = new CustomAuthenticationFilter();
+    customAuthenticationFilter.setAuthenticationManager(authenticationManager);
+    
+    return customAuthenticationFilter;
+}
+```

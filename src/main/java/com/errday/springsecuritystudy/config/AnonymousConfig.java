@@ -12,12 +12,12 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 
 //@Configuration
-@EnableWebSecurity
+//@EnableWebSecurity
 public class AnonymousConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.authorizeRequests(auth -> auth
+        http.authorizeHttpRequests(auth -> auth
                 .requestMatchers("/anonymous").hasRole("GUEST")
                 .requestMatchers("/anonymousContext", "/authentication").permitAll()
                 .anyRequest().authenticated()

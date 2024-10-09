@@ -12,12 +12,12 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 
 //@Configuration
-@EnableWebSecurity
+//@EnableWebSecurity
 public class RememberMeConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.authorizeRequests(auth -> auth.anyRequest().authenticated())
+        http.authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                 .formLogin(Customizer.withDefaults())
                 .rememberMe(rememberMe -> rememberMe
                         .alwaysRemember(true)

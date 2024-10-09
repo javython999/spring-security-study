@@ -20,8 +20,8 @@ import org.springframework.security.web.savedrequest.SavedRequest;
 
 import java.io.IOException;
 
-@Configuration
-@EnableWebSecurity
+//@Configuration
+//@EnableWebSecurity
 public class RequestCacheConfig {
 
     @Bean
@@ -30,7 +30,7 @@ public class RequestCacheConfig {
         HttpSessionRequestCache requestCache = new HttpSessionRequestCache();
         requestCache.setMatchingRequestParameterName("customParam=y");
 
-        http.authorizeRequests(auth -> auth.anyRequest().authenticated())
+        http.authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                 .formLogin(form -> form
                         .successHandler((request, response, authentication) -> {
                             SavedRequest savedRequest = requestCache.getRequest(request, response);

@@ -19,12 +19,12 @@ import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 //@Configuration
-@EnableWebSecurity
+//@EnableWebSecurity
 public class LogoutConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.authorizeRequests(auth -> auth
+        http.authorizeHttpRequests(auth -> auth
                     .requestMatchers("/logoutSuccess").permitAll()
                     .anyRequest().authenticated()
                 )
