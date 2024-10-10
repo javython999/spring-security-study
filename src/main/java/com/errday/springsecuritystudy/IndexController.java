@@ -1,5 +1,6 @@
 package com.errday.springsecuritystudy;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.CurrentSecurityContext;
@@ -8,22 +9,20 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@RequiredArgsConstructor
 public class IndexController {
 
+    private final SecurityContextService securityContextService;
+
     @GetMapping("/index")
-    public String index(String customParam) {
-        if (customParam != null) {
-            return "custom";
-        }
+    public String index() {
+        securityContextService.printAuthentication();
         return "index";
     }
 
     @GetMapping("/")
-    public String root(String customParam) {
-        if (customParam != null) {
-            return "custom";
-        }
-        return "index";
+    public Authentication  root(Authentication authentication) {
+        return authentication;
     }
 
     @GetMapping("/home")
@@ -57,6 +56,11 @@ public class IndexController {
     @GetMapping("/logoutSuccess")
     public String logoutSuccess() {
         return "logoutSuccess";
+    }
+
+    @GetMapping("/api/login")
+    public String apiLogin() {
+        return "apiLogin";
     }
 
 }
