@@ -2,12 +2,17 @@ package com.errday.springsecuritystudy.config;
 
 import com.errday.springsecuritystudy.filter.CustomAuthenticationFilter;
 import com.errday.springsecuritystudy.provider.CustomAuthenticationProvider;
+import com.errday.springsecuritystudy.provider.CustomDaoAuthenticationProvider;
+import com.errday.springsecuritystudy.provider.CustomDaoAuthenticationProvider2;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AnonymousAuthenticationProvider;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.userdetails.User;
@@ -21,30 +26,24 @@ import java.util.List;
 
 //@Configuration
 //@EnableWebSecurity
-public class SecurityConfig2 {
+public class AuthenticationProviderConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+
+        AuthenticationManagerBuilder builder = http.getSharedObject(AuthenticationManagerBuilder.class);
+        builder.authenticationProvider(new CustomDaoAuthenticationProvider());
+        builder.authenticationProvider(new CustomDaoAuthenticationProvider2());
+
         http.authorizeHttpRequests(auth -> auth
-                    .requestMatchers("/", "/api/login").permitAll()
+                    //.requestMatchers("/").permitAll()
                     .anyRequest().authenticated())
-            .addFilterBefore(customAuthenticationFilter(http), UsernamePasswordAuthenticationFilter.class);
+                .formLogin(Customizer.withDefaults());
+                //.authenticationProvider(new CustomDaoAuthenticationProvider())
+                //.authenticationProvider(new CustomDaoAuthenticationProvider());
         return http.build();
     }
 
-    @Bean
-    public CustomAuthenticationFilter customAuthenticationFilter(HttpSecurity http) {
-        List<AuthenticationProvider> list1 = List.of(new DaoAuthenticationProvider());
-        ProviderManager parent = new ProviderManager(list1);
-
-        List<AuthenticationProvider> list2 = List.of(new AnonymousAuthenticationProvider("key"), new CustomAuthenticationProvider());
-        ProviderManager providerManager = new ProviderManager(list2, parent);
-
-        CustomAuthenticationFilter customAuthenticationFilter = new CustomAuthenticationFilter(http);
-        customAuthenticationFilter.setAuthenticationManager(providerManager);
-
-        return customAuthenticationFilter;
-    }
 
     @Bean
     public UserDetailsService userDetailsService() {

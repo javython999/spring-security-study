@@ -493,3 +493,19 @@ public CustsomAuthenticationFilter customFilter() {
     return customAuthenticationFilter;
 }
 ```
+
+### Authentication Provider
+* Authentication Provider
+  * 사용자의 자격 증명을 확인하고 인증 과정을 관리하는 클래스로서 사용자가 시스템에 액세스 하기 위해 제공한 정보 (예: 아이디와 비밀번호)가 유효한지 검증하는 과정을 포함한다.
+  * 다양한 유형의 인증 메커니즘을 지원할 수 있는데, 예를 들어 표준 사용자 이름과 비밀번호를 기반으로 한 인증, 토큰 기반 인증, 지문 인식 등을 처리할 수 있다.
+  * 성공적인 인증 후에는 Authentication 객체를 반환하며 이 객체는 사용자의 신원 정보와 인증된 자격 증명을 포함한다.
+  * 인증 과정 중에 문제가 발생한 경우 AuthenticationException과 같은 예외를 발생시켜 문제를 알리는 역할을 한다.
+
+```java
+public interface AuthenticationProvider {
+    Authentication authenticate(Authentication authentication) throws AuthenticationException;
+    boolean supports(Class<?> authentication);
+}
+```
+* AuthenticationManager로부터 Authentication 객체를 전달 받아 인증을 수행한다.
+* 인증을 수행할 수 있는 조건인지를 검사한다.
