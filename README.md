@@ -509,3 +509,77 @@ public interface AuthenticationProvider {
 ```
 * AuthenticationManager로부터 Authentication 객체를 전달 받아 인증을 수행한다.
 * 인증을 수행할 수 있는 조건인지를 검사한다.
+
+### UserDetailsService
+* UserDetailsService의 주요 기능은 사용자의 관련된 상세 데이터를 로드하는 것이며, 사용자의 신원, 권한 자격 증명 등과 같은 정보를 포함할 수 있다.
+* 이 인터페이스를 사용하는 클래스는 주로 AuthenticationProvider이며 사용자가 시스템에 존재하는지 여부와 사용자 데이터를 검색하고 인증 과정을 수행한다.
+
+```java
+public interface UserDetailsService {
+    UserDetails loadUserByUsername(String username) throws UsernameNotFoundException;
+}
+```
+* 사용자의 이름을 통해 사용자 데이터를 검색하고, 해당 데이터를 UserDetails 객체로 반환한다.
+
+### UserDetailsService 사용 방법
+
+```java
+import java.beans.Customizer;
+
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+  AuthenticationManagerBuilder managerBuilder = http.getSharedObject(AuthenticationManagerBuilder.class);
+  managerBuilder.userDetailsService(customUserDetailsService());
+  http.userDetailsService(customUserDetailsService());
+
+  http.authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+          .formLogin(Customizer.withDefault());
+  return http.build();
+}
+
+@Bean
+public UserDetailsService customUserDetailsService() {
+    return new CustomUserDetailsService();
+}
+```
+* UserDetailsService만 커스터 마이징 할 경우 위와 같이 적용하면 된다.
+* AuthenticationProvider와 함께 커스터 마이징 할 경우 AuthenticationProvider에 직접 주입해서 사용한다.
+* Bean으로 설정하면 자동 주입해준다.
+
+
+### UserDetailsService
+* 사용자의 기본 정보를 저장하는 인터페이스로서 Spring Security에서 사용하는 사용자 타입이다.
+* 저장된 사용자 정보는 추후에 인증 절차에 사용되기 위해 Authentication 객체에 포함되며 구현체로서 User 클래스가 제공된다.
+
+```java
+public interface UserDetails extends Serializable {
+    Collection<? extends GrantedAuthority> getAuthorities();
+
+    String getPassword();
+
+    String getUsername();
+
+    default boolean isAccountNonExpired() {
+        return true;
+    }
+
+    default boolean isAccountNonLocked() {
+        return true;
+    }
+
+    default boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    default boolean isEnabled() {
+        return true;
+    }
+}
+```
+* getAuthorities(): 사용자에게 부여된 권한을 반환하며 null을 반환할 수 없다.
+* getPassword(): 사용자 인증에 사용된 비밀번호를 반환한다.
+* getUsername(): 사용자 인증에 사용된 사용자 이름을 반환하며 null을 반환할 수 없다.
+* isAccountNonExpired(): 사용자 계정의 유효 기간이 지났는지를 나타내며 기간이 만료된 계정은 인증 할 수 없다.
+* isAccountNonLocked(): 사용자가 잠겨있는지 아닌지를 나타내며 잠긴 사용자는 인증할 수 없다.
+* isCredentialsNonExpired(): 사용자의 비밀번호 유효 기간이 지났는지를 확인하며 유효 기간이 지난 비밀번호는 인증할 수 없다.
+* isEnabled(): 사용자가 활성화 되어있는지 비활성화 되어있는지 나타내며 비활성화된 사용자는 인증할 수 없다.

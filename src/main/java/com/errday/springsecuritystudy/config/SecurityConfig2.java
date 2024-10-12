@@ -23,16 +23,16 @@ import java.util.List;
 //@EnableWebSecurity
 public class SecurityConfig2 {
 
-    @Bean
+    /*@Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.authorizeHttpRequests(auth -> auth
                     .requestMatchers("/", "/api/login").permitAll()
                     .anyRequest().authenticated())
             .addFilterBefore(customAuthenticationFilter(http), UsernamePasswordAuthenticationFilter.class);
         return http.build();
-    }
+    }*/
 
-    @Bean
+   /* @Bean
     public CustomAuthenticationFilter customAuthenticationFilter(HttpSecurity http) {
         List<AuthenticationProvider> list1 = List.of(new DaoAuthenticationProvider());
         ProviderManager parent = new ProviderManager(list1);
@@ -44,11 +44,11 @@ public class SecurityConfig2 {
         customAuthenticationFilter.setAuthenticationManager(providerManager);
 
         return customAuthenticationFilter;
-    }
+    }*/
 
-    @Bean
+    /*@Bean
     public UserDetailsService userDetailsService() {
         UserDetails user = User.withUsername("user").password("{noop}1111").roles("USER").build();
         return new InMemoryUserDetailsManager(user);
-    }
+    }*/
 }
