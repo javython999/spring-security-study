@@ -583,3 +583,77 @@ public interface UserDetails extends Serializable {
 * isAccountNonLocked(): 사용자가 잠겨있는지 아닌지를 나타내며 잠긴 사용자는 인증할 수 없다.
 * isCredentialsNonExpired(): 사용자의 비밀번호 유효 기간이 지났는지를 확인하며 유효 기간이 지난 비밀번호는 인증할 수 없다.
 * isEnabled(): 사용자가 활성화 되어있는지 비활성화 되어있는지 나타내며 비활성화된 사용자는 인증할 수 없다.
+
+---
+
+## 인증 상태 영속성
+### SecurityContextRepository / SecurityContextHolderFilter
+* SecurityContextRepository
+  * 스프링 시큐리티에서 사용자가 인증을 한 이후 요청에 대해 계속 사용자의 인증을 유지하기 위해 사용되는 클래스이다.
+  * 인증 상태의 영속 메커니즘은 사용자가 인증을 하게 되면 해당 사용자의 인증 정보와 권한이 SecurityContext에 저장되고 HttpSession을 통해 요청 간 영속성이 이루어 지는 방식이다.
+
+
+```java
+public interface SecurityContextRepository {
+    /** @deprecated */
+    @Deprecated
+    SecurityContext loadContext(HttpRequestResponseHolder requestResponseHolder);
+
+    default DeferredSecurityContext loadDeferredContext(HttpServletRequest request) {
+        Supplier<SecurityContext> supplier = () -> {
+            return this.loadContext(new HttpRequestResponseHolder(request, (HttpServletResponse)null));
+        };
+        return new SupplierDeferredSecurityContext(SingletonSupplier.of(supplier), SecurityContextHolder.getContextHolderStrategy());
+    }
+
+    void saveContext(SecurityContext context, HttpServletRequest request, HttpServletResponse response);
+
+    boolean containsContext(HttpServletRequest request);
+}
+```
+* loadDeferredContext: 로딩을 지연시켜 필요 시점에 SecurityContext를 가져온다.
+* saveContext: 인증 요청 완료 시 보안 컨텍스트를 저장한다.
+* containsContext: 현재 사용자를 위한 보안 컨텍스트가 저장소에 있는지 여부 조회
+
+
+* HttpSessionSecurityContextRepository - 요청 간에 HttpSession에 보안 컨텍스트를 저장한다. 후속 요청 시 컨텍스트 영속성을 유지 한다.
+* RequestAttributeSecurityContextRepository - ServletRequest에 보안 컨텍스트를 저장한다. 후속 요청 시 컨텍스트 영속성을 유지할 수 없다.
+* NullSecurityContextRepository - 세션을 사용하지 않는 인증(JWT, OAuth2) 일 경우 사용하며 컨텍스트 관련 아무런 처리를 하지 않는다.
+* DelegatingSecurityContextRepository - RequestAttributeSecurityContextRepository와 HttpSessionSecurityContextRepository를 동시에 사용할 수있도록 위임된 클래스로서 초기화 시 기본으로 설정된다.
+
+
+* SecurityContextHolderFilter
+  * SecurityContextRepository를 사용하여 SecurityContext를 얻고 이를 SecurityContextHolder에 설정하는 필터 클래스이다.
+  * 이 필터 클래스는 SeucirtContextRepository.saveContext()를 강제로 실행시키지 않고 사용자가 명시적으로 호출되어야 SecurityContext를 저장할 수 있는데 이는 SecurityContextPersistenceFilter와 다른 점이다.
+  * 인증이 지속되어야 하는지 각 인증 메커니즘이 독립적으로 선택할 수 있게 하여 더 나은 유연성을 제공하고 HttpSession에 필요할 때만 저장함으로써 성능을 향상시킨다.
+
+* SecurityContext 생성, 저장, 삭제
+  1. 익명 사용자
+     * SecurityContextRepository를 사용하여 새로운 SecurityContext 객체를 생성하여 SecurityContextHolder에 저장 후 다음 필터로 전달.
+     * AnonymousAuthenticationFilter에서 AnonymousAuthenticationToken 객체를 SecurityContext에 저장
+  2. 인증 요청
+     * SecurityContextRepository를 사용하여 새로운 SecurityContext 객체를 생성. SecurityContextHolder에 저장 후 다음 필터로 전달
+     * UsernamePasswordAuthenticationFilter에서 인증 성공 후 SecurityContext에 UsernamePasswordAuthentication 객체를 SecurityContext에 저장
+     * SecurityContextRepository를 사용하여 HttpSession에 SecurityContext를 저장
+  3. 인증 후 요청
+     * SecurityContextRepository를 사용하여 HttpSession에 SecurityContext 꺼내어 SecurityContextHolder에 저장 후 다음 필터로 전달
+     * SecurityContext 안에 Authentication 객체가 존재하면 계속 인증을 유지 한다.
+  4. 클라이언트 응답 시 공통
+     * SecurityContextHolder.clearContext()로 컨텍스트를 삭제한다.(스레드 풀의 스레드일 경우 반드시 필요)
+
+### securityContext() API
+```java
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    http.securityContext(securityContext -> securityContext.requireExplictSave(true));
+    // SecurityContext를 명시적으로 저장할 것인지 아닌지 여부 설정, 기본 값은 true
+    // true이면 SecurityContextHolderFilter, false이면 SecuirtContextPersistanceFilter가 실행된다.
+    return http.build();
+}
+```
+* 현재 SecurityContextPersistanceFilter는 Deprecated 되었기 때문에 레거시 시스템 외에는 SecurityContextHolderFilter를 사용하면 된다.
+
+### CustomAuthenticationFilter & SecurityContextRepository
+* 커스텀 한 인증 필터를 구현할 경우 인증이 완료된 후 SecurityContext를 SecurityContextHolder에 설정한 후 securityContextRepository에 저장하기 위한 코드를 명시적으로 작성해 주어야 한다.
+`securityContextHolderStrategy.setContext(context);`, `securityContextRepository.saveContext(context);`
+* securityContextRepository는 HttpSessionSecurityRepository 혹은 DelegatingSecurityContextRepository를 사용하면 된다.
