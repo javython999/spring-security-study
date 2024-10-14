@@ -657,3 +657,30 @@ public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Excepti
 * 커스텀 한 인증 필터를 구현할 경우 인증이 완료된 후 SecurityContext를 SecurityContextHolder에 설정한 후 securityContextRepository에 저장하기 위한 코드를 명시적으로 작성해 주어야 한다.
 `securityContextHolderStrategy.setContext(context);`, `securityContextRepository.saveContext(context);`
 * securityContextRepository는 HttpSessionSecurityRepository 혹은 DelegatingSecurityContextRepository를 사용하면 된다.
+
+### 스프링 MVC 인증 구현
+* 스프링 시큐리티 필터에 의존하는 대신 수동으로 사용자를 인증하는 경우 스프링 MVC 컨트롤러 엔드포인트를 사용할 수 있다.
+* 요청 간에 인증을 저장하고 싶다면 HttpSessionSecurityContextRepository를 사용하여 인증 상태를 저장할 수 있다.
+
+```java
+private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
+
+@PostMapping("/login")
+public void login(@RequestBody LoginRequest loginRequest, HttpServletRequest request, HttpServletResponse response) {
+    // 사용자 이름과 비밀번호를 담은 인증 객체를 생성한다.
+    UsernamePasswordAuthenticationToken token = UsernamePasswordAuthenticationToken.unauthenticated(loginRequest.getUsername(), loginRequest.getPassword());
+
+    // 인증을 시도하고 최종 인증 결과를 반환한다.
+    Authentication authentication = authenticationManager.authentication(token);
+    
+    SecurityContext securityContext = SecurityContextHolder.getContextHolderStrategy().createEmptyContext();
+    // 인증 결과를 컨텍스트에 저장한다.
+    securityContext.setAuthentication(authentication);
+
+    // 컨텍스트를 ThreadLocal에 저장한다.
+    SecurityContextHolder.setContext(securityContext);
+
+    // 컨텍스트를 세션에 저장해서 인증 상태를 영속한다.
+    securityContextRepository.saveContext(securityContext, request, response);
+}
+```

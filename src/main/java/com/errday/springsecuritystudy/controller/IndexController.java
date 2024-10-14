@@ -1,5 +1,6 @@
-package com.errday.springsecuritystudy;
+package com.errday.springsecuritystudy.controller;
 
+import com.errday.springsecuritystudy.SecurityContextService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
