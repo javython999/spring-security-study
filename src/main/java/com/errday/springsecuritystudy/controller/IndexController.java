@@ -64,4 +64,14 @@ public class IndexController {
         return "apiLogin";
     }
 
+    @GetMapping("/invalidSessionUrl")
+    public String invalidSessionUrl() {
+        return "invalidSessionUrl";
+    }
+
+    @GetMapping("/expiredUrl")
+    public String expiredUrl() {
+        return "expiredUrl";
+    }
+
 }

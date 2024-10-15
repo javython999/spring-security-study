@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 public class LoginController {
-
+    /*
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
 
@@ -41,5 +41,5 @@ public class LoginController {
         securityContextRepository.saveContext(securityContext, request, response);
 
         return authentication;
-    }
+    }*/
 }
