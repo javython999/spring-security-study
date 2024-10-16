@@ -1,6 +1,7 @@
 package com.errday.springsecuritystudy.controller;
 
 import com.errday.springsecuritystudy.SecurityContextService;
+import com.errday.springsecuritystudy.service.SessionInfoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class IndexController {
 
     private final SecurityContextService securityContextService;
+    private final SessionInfoService sessionInfoService;
 
     @GetMapping("/index")
     public String index() {
@@ -23,6 +25,7 @@ public class IndexController {
 
     @GetMapping("/")
     public Authentication  root(Authentication authentication) {
+        sessionInfoService.sessionInfo();
         return authentication;
     }
 

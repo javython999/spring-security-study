@@ -766,3 +766,12 @@ public SecurityFilterChain securityFilterChain(HttpSecurity http) throw Exceptio
 ### STATELESS 설정에도 세션이 생성될 수 있다
 * 스프링 시큐리티에서 CSRF 기능이 활성화 되어있고 CSRF 기능이 수행 될 경우 사용자의 세션을 생성해서 CSRF 토큰을 저장하게 된다.
 * 세션은 생성되지만 CSRF 기능을 위해서 사용ㄷ될 뿐 인증 프로세스의 SecurityContext 영속성에 영향을 미치지 않는다.
+
+### SessionManagementFilter / ConcurrentSessionFilter
+* SessionManagementFilter
+  * 요청이 시작된 이후 사용자가 인증되었는지 감지하고, 인증된 경우에는 세션 고정 보호 메커니즘을 활성화하거나 동시 다중 로그인을 확인하는 등 세션 관련 활동을 수행 하기 위해 설정 된 세션 인증 전략(SessionAuthentication)을 호출하는 필터 클래스이다.
+  * 스프링 시큐리티 6 이상에서는 SessionManagementFilter가 기본적으로 설정 되지 않으며 세션관리 API를 설정해 생성할 수 있다.
+ 
+* ConcurrentSessionFilter
+  * 각 요청에 대해 SessionRegistry에서 SessionInformation을 검색하고 세션이 만료 표시되었는지 확인하고 만료로 표시된 경우 로그아웃 처리를 수행한다(세션 무효화)
+  * 각 요청에 대해 SessionRegistry.refreshRequest(String)를 호출하여 등록된 세션들이 항상 '미지막 업데이트' 날짜/시간을 가지도록 한다.
