@@ -1,51 +1,52 @@
 package com.errday.springsecuritystudy.config;
 
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 
-//@Configuration
-//@EnableWebSecurity
-public class SessionConfig {
+import java.io.IOException;
+
+@Configuration
+@EnableWebSecurity
+public class ExceptionHandlerConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.authorizeHttpRequests(auth -> auth
-                .requestMatchers( "/invalidSessionUrl", "/expiredUrl").permitAll()
+                .requestMatchers( "/login").permitAll()
+                .requestMatchers("/admin").hasRole("ADMIN")
                 .anyRequest().authenticated())
             .formLogin(Customizer.withDefaults())
-            /*.sessionManagement(session -> session
-                //.invalidSessionUrl("/invalidSessionUrl")
-                .maximumSessions(1)
-                .maxSessionsPreventsLogin(false)
-                .expiredUrl("/expiredUrl")*/
-            /*.sessionManagement(session -> session
-                .sessionFixation(sessionFixation -> sessionFixation.changeSessionId())*/
-            /*.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))*/
-            .sessionManagement(session -> session
-                .maximumSessions(2)
-                .maxSessionsPreventsLogin(false)
+            .exceptionHandling(exception -> exception
+                /*.authenticationEntryPoint(new AuthenticationEntryPoint() {
+                    @Override
+                    public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException) throws IOException, ServletException {
+                        System.out.println(authException.getMessage());
+                        response.sendRedirect("/login");
+                    }
+                })*/
+                .accessDeniedHandler((request, response, accessDeniedException) -> {
+                    System.out.println("exception: " + accessDeniedException.getMessage());
+                    response.sendRedirect("/denied");
+                })
             )
         ;
 
         return http.build();
-    }
-
-    @Bean
-    public SessionRegistry sessionRegistry() {
-        return new SessionRegistryImpl();
     }
 
 

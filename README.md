@@ -775,3 +775,46 @@ public SecurityFilterChain securityFilterChain(HttpSecurity http) throw Exceptio
 * ConcurrentSessionFilter
   * 각 요청에 대해 SessionRegistry에서 SessionInformation을 검색하고 세션이 만료 표시되었는지 확인하고 만료로 표시된 경우 로그아웃 처리를 수행한다(세션 무효화)
   * 각 요청에 대해 SessionRegistry.refreshRequest(String)를 호출하여 등록된 세션들이 항상 '미지막 업데이트' 날짜/시간을 가지도록 한다.
+
+---
+
+## 예외 처리 - exceptionHandling()
+* 예외 처리는 필터 체인 내에서 발생하는 예외를 의미하며 크게 인증예외(AuthenticationException)와 인가예외(AccessDeniedException)로 나눌 수 있다.
+* 예외를 처리하는 필터로서 ExceptionTranslationFilter가 사용 되며 사용자의 인증 및 인가 상태에 따라 로그인 재시도, 401, 403 코드 등으로 응답할 수 있다.
+
+### 예외 처리 유형
+* AuthenticationException
+  1. SecurityContext에서 인증 정보 삭제 - 기존의 Authentication 이 더 이상 유효하지 않다고 판단하고 Authentication을 초기화 한다.
+  2. AuthenticationEntryPoint 호출
+     * AuthenticationException이 감지되면 필터는 authenticationEntryPoint를 싱행하고 이를 통해 인증 실패를 공통적으로 처리할 수 있으며 일반적으로 인증을 시도할 수 있는 화면으로 이동한다.
+  3. 인증 프로세스의 요청 정보를 저장하고 검색
+     * RequestCache & SavedRequest - 인증 프로세스 동안 전달되는 요청을 세션 혹은 쿠키에 저장
+     * 사용자가 인증을 완료한 후 요청을 검색하여 재 사용할 수 있다. 기본 구현은 HttpSessionRequestCache이다.
+  
+* AccessDeniedException
+  * AccessDeniedHandler 호출
+    * AccessDeniedException이 감지되면 필터는 사용자가 익명 사용자가 익명 사용자인지 여부를 판단하고 익명 사용자인 경우 인증 예외처리가 실행되고 익명 사용자가 아닌 경우 필터는 AccessDeniedHandler에게 위임한다.
+
+### exceptionHandling() API
+```java
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    http.exceptionHandling(exception -> exception
+            .authenticationEntryPoint((request, response, authException) -> {   // 커스텀하게 사용할 AuthenticationEntryPoint를 설정한다.
+                System.out.println(authException.getMessage());
+            })
+            .accessDeniedHandler(request, response, accessDeniedException -> {  // 커스텀하게 사용할 AccessDeniedHandler를 설정한다.
+                System.out.println(accessDeniedException.getMessage());
+            })
+    );
+    
+    return http.build();
+}
+```
+* AuthenticationEntryPoint는 인증 프로세스 마다 기본적으로 제공되는 클래스들이 설정된다.
+  * UsernamePasswordAuthenticationFilter - LoginUrlAuthenticationEntryPoint
+  * BasicAuthenticationFilter - BasicAuthenticationEntryPoint
+  * 아무런 인증 프로세스가 설정 되지 않으면 기본적으로 Http403ForbiddenEntryPoint가 사용된다.
+  * 사용자 정의 AuthenticationEntryPoint 구현이 가장 우선적으로 수행되며 이 때는 기본 로그인 페이지 생성이 무시된다.
+  
+* AccessDeniedHandler는 기본적으로 AccessDeniedHandlerImple 클래스가 사용된다.

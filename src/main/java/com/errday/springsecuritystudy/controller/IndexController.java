@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class IndexController {
 
     private final SecurityContextService securityContextService;
-    private final SessionInfoService sessionInfoService;
+    //private final SessionInfoService sessionInfoService;
 
     @GetMapping("/index")
     public String index() {
@@ -25,7 +25,7 @@ public class IndexController {
 
     @GetMapping("/")
     public Authentication  root(Authentication authentication) {
-        sessionInfoService.sessionInfo();
+        //sessionInfoService.sessionInfo();
         return authentication;
     }
 
@@ -75,6 +75,16 @@ public class IndexController {
     @GetMapping("/expiredUrl")
     public String expiredUrl() {
         return "expiredUrl";
+    }
+
+    @GetMapping("/login")
+    public String login() {
+        return "loginPage";
+    }
+
+    @GetMapping("/denied")
+    public String denied() {
+        return "denied";
     }
 
 }
