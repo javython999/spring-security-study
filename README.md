@@ -873,7 +873,114 @@ public CorsConfigurationSource configurationSource() {
     configuration.addAllowdMethod("GET", "POST");
     configuration.setAllowCredintials(true);
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-    source.registerCorConfiguration("/**",  );
+    source.registerCorConfiguration("/**",  configuration);
     return source;
+}
+```
+### CSRF(Cross Site Request Forgery, 사이트간 요청 위조)
+* 웹 애플리케이션의 보안 취약점으로 공격자가 사용자로 하여금 이미 인증된 다른 사이트에 대해 원치 않는 작업을 수행하게 만드는 기법을 말한다.
+* 이 공격은 사용자의 브라우저가 자동으로 보낼 수 있는 인증정보, 예를 들어 쿠키나 기본 인증 세션을 이용하여 사용자가 의도하지 않은 요청을 서버로 전송하게 만든다.
+* 이는 사용자가 로그인한 상태에서 악의적인 웹사이트를 방문하거나 이메일 등을 통해 악의적인 링크를 클릭할 때 발생할 수 있다.
+
+### CSRF 기능 화성화
+
+```java
+import java.beans.Customizer;
+
+@Bean
+SecurityFilterChain defaultFilterChain(HttpSecurity http) {
+  http.csrf(Customizer.withDefault());  // csrf의 기능을 활성화 한다. 별도로 설정하지 않아도 활성화 상태로 초기화 된다.
+  return http.build();
+}
+```
+* 토큰은 서버에  의해 생성되어 클라이언트의 세션에 저장되고 폼을 통해 서버로 전송되는 모든 변경 요청에 포함되어야 하며 서버는 이 토큰을 검증하여 요청의 유효성을 확인한다.
+* 기본 설정은 'GET', 'HEAD', 'TRACE', 'OPTIONS'와 같은 안전한 메서드를 무시하고 'POST', 'PUT', 'DELETE'와 같은 변경 요청 메서드에 대해서만 CSRF 토큰 검사를 수행한다.
+* 중요한 점은 실제 CSRF 토큰이 브라우저에 의해 자동으로 포함되지 않은 요청 부분에 위치해야 한다는 것으로 HTTP 매개변수나 헤더에 실제 CSRF 토큰을 요구하는 것이 CSRF 공격을 방지하는데 효과적이라 할 수 있다.
+* 반면에 쿠키에 토큰을 요구하는 것은 브라우저가 쿠키를 자동으로 요청에 포함시키기 때문에 효과적이지 않다고 볼 수 있다.
+
+#### CSRF 기능 비활성화
+* CSRF 기능 전체 비활성화
+```java
+import java.beans.Customizer;
+
+@Bean
+SecurityFilterChain defaultFilterChain(HttpSecurity http) {
+  http.csrf(csrf ->csrf.disabled());
+  return http.build();
+}
+```
+
+* CSRF 보호가 필요하지 않은 특정 엔드포인트만 비활성화
+```java
+@Bean
+SecurityFilterChain defaultFilterChain(HttpSecurity http) {
+  http.csrf(csrf ->csrf.ignoringRequestMatchers("/api/*"));
+  return http.build();
+}
+```
+
+### CSRF 토큰 유지 - CsrfTokenRepository
+* CsrfToken은 CsrfTokenRepository를 사용하여 영속화 하며 HttpSessionCsrfTokenRepository와 CookieCsrfTokenRepository를 지원한다.
+* 두 군데 중 원하는 위치에 토큰을 저장하도록 설정을 통해 지정할 수 있다.
+
+1. 세션에 토큰 저장 - HttpSessionCsrfTokenRepository
+   * 기본적으로 토큰을 세션에 저장하기 위해 HttpSessionCsrfTokenRepository를 사용한다.
+   * HttpSessionCsrfTokenRepository는 기본적으로 HTTP 요청 헤더인 X-CSRF-TOKEN 또는 요청 매개변수인 _csrf에서 토큰을 읽는다.
+
+```java
+@Bean
+SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) {
+  HttpSessionCsrfTokenRepository csrfTokenRepository = new HttpSessionCsrfTokenRepository();
+  http.csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository));
+  return http.build();
+}
+```
+
+
+2. 쿠키에 토큰 저장 - CookieCsrfTokenRepository
+   * Javascript 기반 애플리케이션을 지원하기 위해 CsrfToken을 쿠키에 유지할 수 있으며 구현체로 CookieCsrfTokenRepsitory를 사용할 수 있다.
+   * CookieCsrfTokenRepository는 기본적으로 XSRF-TOKEN 명을 가진 쿠키에 작성하고 HTTP 요청 헤더인 X-XSRFT-TOKEN 또는 요청 매개변수인 _csrf에서 읽는다.
+   * Javascript에서 쿠키를 읽을 수 있도록 HttpOnly를 명시적으로 false로 설정할 수 있다.
+   * Javascript로 직접 쿠키를 읽을 필요가 없는 경우 보안을 개선하기 위해 HttpOnly를 생략하는 것이 좋다.
+
+```java
+
+@Bean
+SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) {
+  CookieCsrfTokenRepository cookieCsrfTokenRepository = new CookieCsrfTokenRepository();
+  // 둘중 하나만 선택, 
+  http.csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository));
+  http.csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse));
+  return http.build();
+}
+```
+
+#### CSRF 토큰 처리 - CsrfTokenRequestHandler
+* CsrfToken은 CsrfTokenHandler를 사용하요 토큰을 생성하고 응답하고 HTTP헤더 또는 요청 매개변수로부터 토큰의 유효성을 검증하도록 한다.
+* XorCsrfTokenRequestAttributeHandler와 CsrfTokenRequestAttributeHandler를 제공하며 사용자의 정의 핸들러를 구현할 수 있다.
+
+```java
+@Bean
+SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
+    XorCsrfTokenRequestAttributeHandler csrfTokenHandler = new XorCsrfTokenRequestAttributeHandler();
+    http.csrf(csrf -> csrf.csrfTokenRequestHandler(csrfTokenHandler));
+    return http.build();
+}
+```
+* "_csrf" 및 CsrfToken.class.getName() 명으로 HttpServletReqeust 속성에 CsrfToken을 저장하며 HttpServletRequest으로부터 CsrfToken을 꺼내어 참조할 수 있다.
+* 토큰 값을 요청 헤더 (기본적으로 X-CSRF-TOKEN 또는 X-XSRF-TOKEN 중 하나) 또는 요청 매개변수 (_csrf)중 하나로부터 토큰의 유효성을 비교 및 검증을 해결 한다.
+* 클라이언트의 매 요청마다 CSRF 토큰 값(UUID)에 난수를 인코딩하여 변경한 CsrfToken이 반환되도록 보장한다. 세션에 저장된 원본 토큰 값은 그대로 유지한다.
+* 헤더 값 또는 요청 매개변수로 전달된 인코딩 된 토큰은 원본 토큰을 얻기 위해 디코딩되며, 그런 다음 세션 혹은 쿠키에 저장된 영구적인 CsrfToken과 비교된다.
+
+#### CSRF 토큰 지연 로딩
+* 기본적으로 SpringSecurity는 CsrfToken을 필요할 때까지 로딩을 지연시키는 전략을 사용한다. 그러므로 CsrfToken은 HttpSession에 저장되어있기 때문에 매 요청마다 세션으로부터 CsrfToken을 로드할 필요가 없어져 성능을 향상시킬 수 있다.
+* CsrfToken은 POST와 같은 안전하지 않은 HTTP 메서드를 사용하여 요청이 발생할 때와 CSRF 토큰을 응답에 렌더링하는 모든 요청에서  필요하기 때문에 그 외 요청에는 지연로딩 하는 것이 권장된다.
+```java
+@Bean
+SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
+  XorCsrfTokenRequestAttributeHandler csrfTokenHandler = new XorCsrfTokenRequestAttributeHandler();
+  csrfTokenHandler.setCsrfRequestAttributeName(null); // 지연된 토큰을 사용하지 않고 CsrfToken을 모든 요청마다 로드한다.
+  http.csrf(csrf -> csrf.csrfTokenRequestHandler(csrfTokenHandler));
+  return http.build();
 }
 ```

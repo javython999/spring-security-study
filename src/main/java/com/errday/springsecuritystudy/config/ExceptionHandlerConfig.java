@@ -20,8 +20,8 @@ import org.springframework.security.web.SecurityFilterChain;
 
 import java.io.IOException;
 
-@Configuration
-@EnableWebSecurity
+//@Configuration
+//@EnableWebSecurity
 public class ExceptionHandlerConfig {
 
     @Bean
