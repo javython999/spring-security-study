@@ -10,7 +10,13 @@ Content-Type: application/json
 POST http://localhost:8080/csrf
 Content-Type: application/x-www-form-urlencoded
 
-_csrf = dp4ZQQ_vISSkMm0ovew0Eq2oA2K_ZdVvHUwkGkv3xcbbuXALQ_18dT7YQxWJVFQdj8EAIcuaLlrbXO1CeH0SKy6Uof64gUFv
+_csrf = 2WWcPJNj1QdlutK7RqIq_viazZPew_It5TecE1N7JJWRUu3Y71CvCPZRsWZIi-aJII8ex8mq4PLmpcIAh1akdmcYEKHzZN_t
+
+### GET request with json body
+GET http://localhost:8080/csrfToken
+Content-Type: application/x-www-form-urlencoded
+
+_csrf = UlLnyZTih5TuzeHk5WBcGZDpDt4cH_S20OV16MnuOgUSEdarZGfU_fHQ4_XD_NXWg01oIKHZI78kecSbsoRNjf2NDjFwJ-Se
 
 ### Send POST request with json body
 POST http://localhost:8080/csrf

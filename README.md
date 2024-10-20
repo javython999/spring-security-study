@@ -984,3 +984,34 @@ SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Excepti
   return http.build();
 }
 ```
+
+### CSRF 통합
+* CSRF 공격을 방지하기 위한 토큰 패턴을 사용하려면 실제 CSRF 토큰을 HTTP 요청에 포함해야 한다.
+* 그래서 브라우저에 의해 HTTP 요청에 자동으로 포함되지 않는 요청 부분(폼 매개변수, HTTP 헤더 또는 기타 부분) 중에 하나 포함되어야 한다.
+* 클라이언트 애플리케이션이 CSRF로 보호된 백엔드 애플리케이션과 통합하는 여러 가지 방법을 살펴보자.
+
+#### HTML Forms
+* HTML Form을 서버에 제출하려면 CSRF 토큰을 hidden 값으로 Form에 포함해야 한다
+```html
+<form action="/memberJoin" method="post">
+  <input type="hidden" name="${_csrf.parameterName}" value="${_csrf.token}" />
+</form>
+```
+* Form에 실제 CSRF 토큰을 자동으로 포함하는 뷰는 다음과 같다.
+  * Thymeleaf
+  * Spring의 form태그 라이브러리
+
+#### Javascript Application
+* Single Page Application
+  1. CookieCsrfTokenRepository.withHttpOnlyFalse를 사용해서 클라이언트가 서버가 발행한 쿠키로부터 CSRF 토큰을 읽을 수 있도록 한다.
+  2. 사용자 정의 CsrfTokenRequestHandler를 만들어 클라이언트가 요청 헤더나 요청 파라미터로 CSRF 토큰을 제출할 경우 이를 검증하도록 구현한다.
+  3. 클라이언트의 요청에 대해 CSRF 토큰 쿠키에 렌더링해서 응답할 수 있도록 필터를 구현한다.
+* Multi Page Application
+  1. Javascript가 각 페이지에서 로드되는 멀티 페이지 애플리케이션의 경우 CSRF 토큰을 쿠키에 노출시키는 대신 HTML 메타 태그 내에 CSRF 토큰을 포함시킬 수 있다.
+```html
+<!DOCTYPE html>
+<html>
+    <meta name="_csrf" content="${_csrf.token}"/>
+    <meta name="_csrf.header" content="${_csrf.headerName}"/>
+</html>
+```
