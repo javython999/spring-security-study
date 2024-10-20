@@ -1015,3 +1015,41 @@ SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Excepti
     <meta name="_csrf.header" content="${_csrf.headerName}"/>
 </html>
 ```
+
+### SameSite 
+* SameSite는 최신 방식의 CSRF 공격 방어 방법 중 하나로서 서버가 쿠키를 설정할 때 SameSite 속성을 지정하여 크로스 사이트 간 스크립트 전송에 대한 제어를 핸들링할 수 있다.
+* SpringSecurity는 세션 쿠키의 생성을 직접 제어하지 않기 때문에 SameSite 속성에 대한 지원을 제공하지 않지만 Spring Session은 SameSite 속성을 지원한다.
+
+#### SameSite 속성
+* Strict
+  * 동일 사이트에서 오는 모든 요청에 쿠키가 포함되고 크로스 사이트간 HTTP 요청에 쿠키가 포함되지 않는다.
+* Lax(기본 설정)
+  * 동일 사이트에 오거나 Top Level Navigation에서 오는 요청 및 메소드가 읽기 전용인 경우 쿠키가 전송되고 그렇지 않으면 HTTP 요청에 쿠키가 포함되지 않는다.
+  * 사용자가 링크 (`<a>`)를 클릭하거나 windows.location.replace, 302 리다이렉트 등의 이동이 포함된다. 그러나 `<iframe>`이나 `<img>`를 문서에 삽입, AJAX 통신등은 쿠키가 전송되지 않는다.
+* None
+  * 동일 사이트 및 크로스 사이트 요청의 경우에도 쿠키가 전송된다. 이모드에서는 HTTPS에 의한 Secure 쿠키로 설정되어야 한다.
+
+#### Spring Session으로 SameSite 적용하기
+`implementation group: 'org.springframework.session', name: 'spring-session-core', version: '3.2.1'`
+
+```java
+import java.util.concurrent.ConcurrentHashMap;
+
+@Configuration
+@EnableSpringHttpSession
+public class HttpSessionConfig {
+  @Bean
+  public CookieSerializer cookieSerializer() {
+    DefaultCookieSerializer serializer = new DefaultCookieSerializer();
+    serializer.setUseSecuredCookie(true);
+    serializer.setUseHttpOnlyCookie(true);
+    serializer.setSameSite("Lax");
+    return serializer;
+  }
+
+  @Bean
+  public SessionRepository<MapSession> sessionRepository() {
+    return new MapSessionRepository(new ConcurrentHashMap<>());
+  }
+}
+```
