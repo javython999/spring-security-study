@@ -11,8 +11,8 @@ import org.springframework.session.web.http.DefaultCookieSerializer;
 
 import java.util.concurrent.ConcurrentHashMap;
 
-@Configuration
-@EnableSpringHttpSession
+//@Configuration
+//@EnableSpringHttpSession
 public class HttpSessionConfig {
 
     @Bean

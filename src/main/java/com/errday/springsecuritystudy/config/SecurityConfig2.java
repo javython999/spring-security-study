@@ -46,9 +46,4 @@ public class SecurityConfig2 {
         return customAuthenticationFilter;
     }*/
 
-    /*@Bean
-    public UserDetailsService userDetailsService() {
-        UserDetails user = User.withUsername("user").password("{noop}1111").roles("USER").build();
-        return new InMemoryUserDetailsManager(user);
-    }*/
 }

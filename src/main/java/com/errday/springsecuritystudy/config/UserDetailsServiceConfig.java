@@ -27,10 +27,4 @@ public class UserDetailsServiceConfig {
         return http.build();
     }
 
-
-
-    @Bean
-    public UserDetailsService userDetailsService() {
-        return new CustomUserDetailsService();
-    }
 }

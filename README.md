@@ -1053,3 +1053,68 @@ public class HttpSessionConfig {
   }
 }
 ```
+
+---
+## 인가 프로세스
+### 요청 기반 권한 부여 (Request Based Authorization) - HttpSecurity.authorizeHttpRequest()
+```java
+@Bean
+SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
+    http.authorizeHttpRequests(authorize -> authorize
+            .anyRequest().authenticated() // 애플리케이션의 모든 엔드포인트가 최소한 인증된 보안 컨텍스트가 있어야 한다.
+    );
+    
+    return http.build();
+}
+```
+* authorizeHttpRequests()는 사용자의 자원접근을 위한 요청 엔드포인트와 접근에 필요한 권한을 매핑시키기 위한 규칙을 설정하는 것으로서 서블릿 기반 엔드포인트에 접근하려면 authorizeHttpReqeust()에 해당 규칙들을 포함해야 한다.
+* authorizeHttpRequests()를 통해 요청과 권한 규칙이 설정되면 내부적으로 AuthorizationFilter가 요청에 대한 권한 검사 및 승인 작업을 수행한다.
+
+#### authorizeHttpRequests() API
+* requestMatchers()
+  * requestMatchers 메소드는 HTTP 요청의 URL 패턴, HTTP 메소드, 요청 파라미터 등을 기반으로 어떤 요청에 대해서는 특정 보안 설정을 적용하고 다른 요청에 대해서는 적용하지 않도록 세밀하게 제어할 수 있게 해준다.
+  * 예를 들어 특정 API 경로에만 CSRF 보호를 적용하거나, 특정 경로에 대해 인증을 요구하지 않도록 설정할 수 있다. 이를 통해 애플리케이션의 보안 요구 사항에 맞춰 유연한 보안정책을 구성핤수 있다.
+
+> 1. requestMatchers(String... urlPattern)      
+>    * 보호가 필요한 자원 경로를 한 개 이상 정의 한다.
+> 2. requestMatchers(RequestMatcher... requestMatchers)
+>    * 보호가 필요한 자원 경로를 한 개 이상 정의한다. AnyPathRequestMatcher, MvcRequestMatcher 등의 구현체를 사용할 수 있다.
+> 3. requestMatchers(HttpMethod method, String... urlPatterns)
+>    * Http Method와 보호가 필요한 자원 경로를 한 개 이상 정의 한다.
+
+* 엔드 포인트 & 권한 부여
+```java
+requestMatchers("/admin").hasRole("ADMIN") // 요청 URL이 /admin 엔드포인트일 경우 ADMIN 권한이 필요
+```
+
+#### 보호 자원과 권한 규칙 설정하기
+```java
+http.authorizeHttpRequests(authorize -> authorize
+        .requestMatcher("/user").hasAuthority("USER")       // 엔드 포인트와 권한 설정, 요청이 /user 엔드포인트 요청일 경우 USER 권한이 필요하다.
+        .requestMatcher("/mypage/**").hasAuthority("USER")  // Ant 패턴을 사용할 수 있다. 요청이 /mypage 또는 그 하위 경로인 경우 USER 권한이 필요하다.
+        .requestMatcher(RegexRequestMatcher.regexMatcher("/resource/[A-Za-z0-9]+")).hasAuthority("USER") // 정규 표현식을 사용할 수 있다.
+        .requestMatcher(HttpMethod.GET, "/**").hasAuthority("read") //HTTP Method를 옵션으로 설정할 수 있다.
+        .requestMatcher(HttpMethod.POST).hasAuthority("write")      //POST 방식의 모든 엔드포인트 요청은 write 권한을 필요로 한다.
+        .requestMatcher(new AntPathRequestMatcher("/manager/**")).hasAuthority("MANAGER")   // 원하는 RequestMatcher를 직접 사용할 수 있다.
+        .requestMatcher("/admin/**").hasAnyAuthority("ADMIN", "MANAGER")    // /admin/ 이하의 모든 요청은 ADMIN과 MANAGER 권한을 필요하다.
+        .anyRequest().authenticated()   // 위에서 정의한 규칙 외 모든 엔드 포인트 요청은 인증을 필요로 한다.
+);
+```
+#### 주의 사항
+* 스프링 시큐리티는 클라이언트의 요청에 대하여 위에서 부터 아래로 나열된 순서대로 처리한다. 요청에 대하여 첫번째 일치만 적용 되고 다음순서로 넘어가지 않는다.
+* /admin/**가 /admin/db 요청을 포함하므로 의도한 대로 규칙이 올바르게 적용 되지 않을 수 있다. 그렇기 때문에 엔드포인트 설정 시 좁은 범위의 경로를 먼저 정의하고 그것 보다 큰 범위의 경로를 다음으로 정의 해야 한다.
+
+#### 권한 규칙 종류
+* authenticated: 인증된 사용자의 접근을 허용 한다.
+* fullyAuthenticated: 아이디와 패스워드로 인증된 사용자의 접근을 허용, rememberMe 인증은 제외 한다.
+* anonymous: 익명사용자의 접근을 허용한다.
+* rememberMe: 기억하기를 통해 인증된 사용자의 접근을 허용한다.
+* permitAll: 요청에 승인이 필요하지 않은 공개 엔드포인트이며, 세션에서 Authentication을 검색하지 않는다.
+* denyAll: 요청은 어떠한 경우에도 허용되지 않으며 세션에서 Authentication을 검색하지 않는다.
+* access: 요청이 사용자 정의 AuthorizationManager를 사용하여 액세스를 결정한다.(표현식 문법 사용)
+* hasAuthority: 사용자의 Authentication에는 지정된 권한과 일치하는 GrantedAuthority가 있어야 한다.
+* hasRole: hasAuthority의 단축키로 ROLE_ 또는 기본접두사로 구성된다. ROLE_을 제외한 문자열을 파라미터로 전달.
+* hasAnyAuthority: 사용자 Authentication에는 지정된 권한 중 하나와 일치하는 GrantedAuthority가 있어야 한다.
+* hasAnyRole: hasAnyAuthority의 단축키로 ROLE_ 또는 기본 접두사로 구성된다. ROLE_을 제외한 문자열을 파라미터로 전달.
+
+> 권한 규칙은 내부적으로 AuthorizationManager 클래스에 의해 재 구성되며 모든 요청은 Authroization에 설정된 권한 규칙에 따라 승인 혹은 거부된다.
