@@ -14,7 +14,8 @@ public class CommonUserDetailServiceConfig {
     public UserDetailsService userDetailsService() {
         UserDetails user = User.withUsername("user").password("{noop}1111").roles("USER").build();
         UserDetails manager = User.withUsername("manager").password("{noop}1111").roles("MANAGER").build();
-        UserDetails admin = User.withUsername("admin").password("{noop}1111").roles("ADMIN", "WRITE").build();
-        return new InMemoryUserDetailsManager(user, manager, admin);
+        UserDetails admin = User.withUsername("admin").password("{noop}1111").roles("ADMIN", "WRITE", "SECURE").build();
+        UserDetails db = User.withUsername("db").password("{noop}1111").roles("DB").build();
+        return new InMemoryUserDetailsManager(user, manager, admin, db);
     }
 }

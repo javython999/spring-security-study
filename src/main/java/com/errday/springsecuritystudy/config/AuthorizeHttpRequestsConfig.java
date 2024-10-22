@@ -13,8 +13,8 @@ import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.RegexRequestMatcher;
 import org.springframework.web.servlet.handler.HandlerMappingIntrospector;
 
-@Configuration
-@EnableWebSecurity
+//@Configuration
+//@EnableWebSecurity
 public class AuthorizeHttpRequestsConfig {
 
     @Bean

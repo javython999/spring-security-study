@@ -10,26 +10,32 @@ import org.springframework.security.core.annotation.CurrentSecurityContext;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@RestController
+//@RestController
 @RequiredArgsConstructor
 public class IndexController {
 
     private final SecurityContextService securityContextService;
-    //private final SessionInfoService sessionInfoService;
+    private final SessionInfoService sessionInfoService;
 
     @GetMapping("/index")
     public String index() {
-        securityContextService.printAuthentication();
+        //securityContextService.printAuthentication();
         return "index";
     }
 
     //@GetMapping("/")
     public Authentication  root(Authentication authentication) {
-        //sessionInfoService.sessionInfo();
+        sessionInfoService.sessionInfo();
         return authentication;
+    }
+
+    @GetMapping("/")
+    public String root() {
+        return "index";
     }
 
     @GetMapping("/home")
@@ -120,6 +126,16 @@ public class IndexController {
         return "user";
     }
 
+    @GetMapping("/custom")
+    public String custom() {
+        return "custom";
+    }
+
+    @GetMapping("/user/{name}")
+    public String user(@PathVariable(value = "name") String name) {
+        return name;
+    }
+
     @GetMapping("/myPage/points")
     public String myPage() {
         return "myPage";
@@ -133,6 +149,11 @@ public class IndexController {
     @GetMapping("/admin")
     public String admin() {
         return "admin";
+    }
+
+    @GetMapping("/admin/db")
+    public String adminDb() {
+        return "adminDb";
     }
 
     @GetMapping("/admin/payment")
@@ -153,6 +174,16 @@ public class IndexController {
     @PostMapping("/post")
     public String post() {
         return "post";
+    }
+
+    @GetMapping("/api/photos")
+    public String photos() {
+        return "photos";
+    }
+
+    @GetMapping("/oauth/login")
+    public String oauthLogin() {
+        return "oauthLogin";
     }
 
 }

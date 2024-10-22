@@ -1118,3 +1118,152 @@ http.authorizeHttpRequests(authorize -> authorize
 * hasAnyRole: hasAnyAuthority의 단축키로 ROLE_ 또는 기본 접두사로 구성된다. ROLE_을 제외한 문자열을 파라미터로 전달.
 
 > 권한 규칙은 내부적으로 AuthorizationManager 클래스에 의해 재 구성되며 모든 요청은 Authroization에 설정된 권한 규칙에 따라 승인 혹은 거부된다.
+
+### 표현식 및 커스텀 권한 구현
+* 표현식 권한 규칙 설정
+  * 스프링 시큐리티는 표현식을 사용해서 권한 규칙을 설정하도록 WebExpressionAuthorizationManager를 제공한다.
+  * 표현식은 시큐리티가 제공하는 권한 규칙을 사용하거나 사용자가 표현식을 커스텀하게 구현해서 설정 가능하다.
+
+* 사용 방법    
+`requestMatchers().access(new WebExpressionAuthorizationManager("expression"))`
+
+* 적용하기
+```java
+// 요청으로부터 값을 추출할 수 있다.
+requestMatchers("/resource/{name}").access(new WebExpressionAuthorizationManager("#name == authentication.name"))
+
+// 여러개의 권한 규칙을 조합할 수 있다.
+requestMatchers("/admin/db").access(new webExpressionAuthorizationManager("hasAuthority('DB') or hasRole('ADMIN)"))
+```
+
+```java
+requestMatchers("/admin/db").access(anyOf(hasAuthority("db"), hasRole("ADMIN")))
+```
+
+#### 커스텀 권한 표현식 구현
+
+```java
+import java.net.http.HttpRequest;
+
+SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http, ApplicationContext context) throws Exeception {
+  DefaultHttpSecurityExpressionHandler expressionHandler = new DefaultHttpSecurityExpressionHandler();
+  expressionHandler.setApplicationContext(context);
+
+  WebExpressionAuthorizationManager expressManager = new WebExpressionAuthorizationManager("@customWebSecurity.check(authentication, request)");
+  expressManager.setExpressionHandler(expressManager);
+
+  http.authorizeRequests(authorize -> authorize.requestMatchers("/resource/**").access(expressManager));
+
+  return http.build();
+}
+
+@Component("customWebSecurity")
+public class CustomWebSecurity {
+  public boolean check(Authentication authentication, HttpRequest request) {
+      return authentication.isAuthenticated(); // 사용자가 인증 되었는지를 검사
+  }
+}
+```
+* 사용자 정의 빈을 생성하고 새로운 표현식으로 사용할 메서드를 정의하고 권한 검사 로직을 구현한다.
+
+#### 커스텀 RequestMatcher 구현
+RequestMatcher의 mathcer 및 matchers 메서드를 사용하여 클라이언트의 요청 객체로부터 값을 검증하도록 커스텀한 RequestMatcher를 구현하고 requestMatchers() 메서드에 설정한다.
+
+```java
+public class CustomRequestMatcher implements RequestMatcher {
+    private final String urlPattern;
+    public CustomRequestMatcher(String urlPattern) {
+        this.urlPattern = urlPattern;
+    }
+    
+    @Override
+    public boolean matchers(HttpServletRequest request) {
+        String requestURI = request.getRequestURI();
+        return requestURI.startsWith(urlPattern);
+    }
+}
+```
+```java
+http.authorizeHttpRequest((authorize) -> authorize
+        .requestMatchers(new CustomRequestMatcher("/api/**")).hasAuthority("USER")
+        .anyRequests().authenticated());
+```
+
+#### 요청 기반 권한 부여 - HttpSecurity.securityMatcher()
+* securityMatcher()
+  * securityMatcher 메소드는 특정 패턴에 해당하는 요청에만 보안 규칙을 적용하도록 설정할 수 있으며 중복해서 정의할 경우 마지막에 설정한 것으로 대체한다.
+  1. securityMatcher(String... urlPattern)
+     * 특정 자원 보호가 필요한 경로를 정의한다.
+  2. securityMatcher(RequestMatcher.. requestMatchers)
+     * 특정 자원 보호가 필요한 경로를 정의한다. AntPathRequestMatcher, MvcRequestMatcher 등의 구현체를 사용할 수 있다.
+  
+* 패턴 설정
+`http.securityMathcer("/api/**").authorizeHttpRequests(auth -> auth.requestMatcher(...))`
+  * httpSecurity를 /api/로 시작하는 URL에만 적용하도록 구성한다.
+  * SpringMVC가 클래스 경로에 있으면 MvcRequestMatcher가 사용되지 않고, 그렇지 않으면 AntPathRequestMatcher가 사용된다.
+
+* securityMatchers()
+  * 다중 설정 패턴
+    * securityMatchers 메소드는 특정 패턴에 해당하는 요청을 단일이 아닌 다중 설정으로 구성해서 보안 규칙을 적용할 수 있으며 현재의 규칙은 이전의 규칙을 대체하지 않는다.
+* 패턴 유형
+```java
+// 패턴1
+http.securityMathcers((matcher) -> matcher.requestMatcher("/api/**", "/oauth/**"));
+
+// 패턴2
+http.securityMathcers((matcher) -> matcher.requestMatcher("/api/**").requestMatcher("/api/**"));
+
+// 패턴3
+http.securityMathcers((matcher) -> matcher.requestMatcher("/api/**"))
+    .securityMathcers((matcher) -> matcher.requestMatcher("/api/**"));
+```
+
+#### 메서드 기반 권한 부여 - @PreAuthorize, @PostAuthorize
+* 스프링 시큐리티는 요청 수준의 권한 부여뿐만아니라 메서드 수준에서의 권한 부여를 지원한다.
+* 메서드 수준 권한 부여를 활성화 하기 위해서는 설정 클래스에 `@EnableMethodSecurity` 애노테이션을 추가해야 한다.
+* SpEL(Spring Expression Language) 표현식을 사용하여 다양한 보안 조건을 정의할 수 있다.
+
+#### @EnableMethodSecurity
+```java
+@EnableMethodSecurity
+@Configuration
+public class SecurityConfig { ... }
+```
+
+#### @PreAuthorize
+* @PreAuthorize 애노테이션은 메서드가 실행되기 전에 특정한 보안 조건이 충족되는지 확인하는 데 사용되며 보통 서비스 또는 컨트롤러 레이어의 메소드에 적용되어 해당 메소드가 호출 되기 전에 사용자의 인증 정보와 권한을 검사한다.
+```java
+@PreAuthorize("hasAuthority('ROLE_ADMIN')")
+public void adminOnlyMethod() {}
+
+@PreAuthorize("hasAuthority('ROLE_ADMIN', 'ROLE_USER')")
+public void adminOrUserMethod() {}
+
+@PreAuthorize("isAuthenticated()")
+public void authenticatedUserOnlyMethod() {}
+
+@PreAuthorize("#id == authentication.name")
+public void userSpecificMethod(String id) {}
+```
+
+#### @PostAuthorize
+* @PostAuthorize 애노테이션은 메소드가 실행된 후에 보안 검사를 수행하는데 사용된다.
+* @PreAuthorize와 달리 메소드 실행 후 결과에 대한 보안 조건을 검사하여 특정 조건을 만족하는 경우에만 결과를 받을 수 있도록 한다.
+```java
+@PostAuthorize("returnObject.owner == authentication.name")
+public BancAccount getAccount(Long id) {
+    // 계정을 반환하지만 계정의 소유자만 결과를 볼 수 있음
+    return new BankAccount();
+}
+
+@PostAuthorize("hasAuthority('ROLE_ADMIN') and returnObject.isSecure")
+public BancAccount getSecureAndAdminAccount() {
+  // 계정을 반환하지만 계정이 기밀이고 사용자가 관리자일 경우에만 결과를 볼 수 있음
+  return new BankAccount();
+}
+
+@PostAuthorize("returnObject != null and (returnObject.status === 'APPROVED' or hasAuthority('ROLE_ADMIN')")
+public BancAccount updateRequestStatus() {
+    return new BankAccount();
+}
+```
