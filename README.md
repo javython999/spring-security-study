@@ -1431,3 +1431,96 @@ public class MyController {
 ```
 * 메서드에 애노테이션을 선언한 메소드는 클래스 수준의 애노테이션을 덮어 쓰게 된다.
 * 인터페이스에도 동일한 규칙이 적용되지만 클래스가 두 개의 다른 인터페이스로부터 동일한 메서드의 애노테이션을 상속 받는 경우에는 시작할 때 실패한다. 그래서 구체적인 애노테이션을 추가함으로써 모호성을 해결할 수 있다.
+
+### 정적 자원 관리
+* 스프링 시큐리티에서는 RequestMatcher 인스턴스를 등록하여 무시해야할 요청을 지정할 수 있다.
+* 주로 정적자원(이미지, CSS, JavaScript 파일 등)에 대한 요청이나 특정 엔드포인트가 보안 필터를 거치지 않도록 설정할 때 사용된다.
+```java
+@Bean
+public WebSecurityCustomizer webSecurityCustomizer() {
+    return (webSecurity) -> {
+        webSecurity.ignoring().requestMatchers(PathRequest.toStaticResources().atCommonLocations());
+    };
+}
+```
+```java
+public enum StaticResourceLocation {
+  CSS(new String[]{"/css/**"}),
+  JAVA_SCRIPT(new String[]{"/js/**"}),
+  IMAGES(new String[]{"/images/**"}),
+  WEB_JARS(new String[]{"/webjars/**"}),
+  FAVICON(new String[]{"/favicon.*", "/*/icon-*"});
+
+  private final String[] patterns;
+
+  private StaticResourceLocation(String... patterns) {
+    this.patterns = patterns;
+  }
+
+  public Stream<String> getPatterns() {
+    return Arrays.stream(this.patterns);
+  }
+}
+```
+* Ignoring 보다 permitAll 권장
+```java
+http.authorizeHttpRequests(auth -> auth
+        .requestMatchers("/css/**", "/js/**", "/images/**", "/webjars/**", "/favicon.*", "/*/icon-*").permitAll()
+        .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
+        .anyRequest().authenticated();
+)
+```
+* 이전에는 모든 요청마다 세션을 확인해야 해서 성능 저하가 있었지만 스프링 시큐리티 6부터는 권한 부여 규칙에서 필요한 경우를 제외하고는 세션을 확인하지 않는다.
+* 성능 문제가 해결되었기 때문에 모든 요청에 대해서 permitAll을 사용할 것을 권장하며 정적 자원에 대한 요청일지라도 안전한 헤더를 작성할 수 있어 더 안전하다.
+
+### 계층적 권한
+* 기본적으로 스프링 시큐리티에서 권한과 역할은 계층적이거나 상하 관계로 구분하지 않는다. 그래서 인증 주체가 다양한 역할과 권한을 부여 받아야 한다.
+* RoleHierarchy는 역할 간의 계층 구조를 정의하고 관리하는 데 사용되며 보다 간편하게 역할 간의 계층 구조를 설정하고 이를 기반으로 사용자에 대한 엑세스 규칙을 정의할 수 있다.
+```xml
+<property name="hierachy">
+  <value>
+    ROLE_A > ROLE_B
+    ROLE_B > ROLE_C
+    ROLE_C > ROLE_D
+  </value>
+</property>
+```
+* ROLE_A를 가진 모든 사용자는 ROLE_B, ROLE_C, ROLE_D도 가지게 된다.
+* ROLE_B를 가진 모든 사용자는 ROLE_C, ROLE_D도 가지게 된다.
+* ROLE_C를 가진 모든 사용자는 ROLE_D도 가지게 된다.
+* 계층적 역할을 사용하면 엑세스 규칙이 크게 줄어들 뿐만 아니라 더 간결하고 우아한 형태로 규칙을 표현할 수 있다.
+
+* 구조
+```java
+public interface RoleHierarchy {
+    Collection<? extends GrantedAuthority> getReachableGrantedAuthorities(Collection<? extends GrantedAuthority> authorities);
+}
+```
+```java
+public class RoleHierarchyImpl implements RoleHierarchy {
+  public Collection<GrantedAuthority> getReachableGrantedAuthorities(Collection<? extends GrantedAuthority> authorities);
+  private static Map<String, Set<GrantedAuthority>> buildRolesReachableInOneStepMap(String hierarchy);
+  public void setHierarchy(String roleHierarchyStringRepresentation);
+  private static Map<String, Set<GrantedAuthority>> buildRolesReachableInOneOrMoreStepsMap(Map<String, Set<GrantedAuthority>> hierarchy);
+}
+```
+```java
+@Bean
+static RoleHierarchy roleHierarchy() {
+    RoleHierarchyImpl hierarchy = new RoleHierarchyImpl();
+    hierarchy.setHierarchy(
+            "ROLE_ADMIN > ROLE_MANAGER\n"
+            + "ROLE_MANAGER > ROLE_USER\n"
+            + "ROLE_USER > ROLD_GUEST"
+    );
+    return hierarchy;
+}
+```
+* setHierarchy
+  * 역할 계층을 설정하고 각 역할에 대해 해당 역할의 하위 계층에 속하는 모든 역할 집합을 미리 정해 놓는다.
+    * 역할 계층 ROLE_A > ROLE_B > ROLE_C 
+* getReachableGrantedAuthorities
+  * 모든 도달 가능한 권한의 배열을 반환한다.
+  * 도달 가능한 권한은 직접 할당된 권한에 더해 역할 계층에서 이들로부터 도달 가능한 모든 권한을 의미한다.
+    * 직접 할당 권한: ROLE_B
+    * 도달 가능한 권한: ROLE_B, ROLE_C
