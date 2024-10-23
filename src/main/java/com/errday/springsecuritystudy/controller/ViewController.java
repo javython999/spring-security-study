@@ -15,4 +15,9 @@ public class ViewController {
     public String cookie() {
         return "cookie";
     }
+
+    @GetMapping("/method")
+    public String method() {
+        return "method";
+    }
 }
