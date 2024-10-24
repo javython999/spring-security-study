@@ -1524,3 +1524,59 @@ static RoleHierarchy roleHierarchy() {
   * 도달 가능한 권한은 직접 할당된 권한에 더해 역할 계층에서 이들로부터 도달 가능한 모든 권한을 의미한다.
     * 직접 할당 권한: ROLE_B
     * 도달 가능한 권한: ROLE_B, ROLE_C
+
+---
+## 인가 아키텍처
+### 인가 - Authorization
+* 인가 즉 권한 부여는 특정 자원에 접근할 수 있는 사람을 결정하는 것을 의미한다.
+* SpringSecurity는 GrantedAuthority 클래스를 통해 권한 목록을 관리하고 있으며 사용자의 Authentication 객체와 연결한다.
+
+#### GrantedAuthority
+* 스프링 시큐리티는 Authentication에 GrantedAuthority 권한 목록을 저장하며 이를 통해 인증 주체에게 부여된 권한을 사용하도록 한다.
+* GrantedAuthority 객체는 AuthenticationManager에 의해 Authentication 객체에 삽입되며 스프링 시큐리티는 인가 결정을 내릴 때 AuthorizationManager를 사용하여 Authentication 즉, 인증 주체로부터 GrantedAuthority 객체를 읽어들여 처리하게 된다.
+
+#### 구조
+```java
+public interface GrantedAuthority extends Serializable {
+    String getAuthority();
+}
+```
+```java
+public final class SimpleGrantedAuthority implements GrantedAuthority {
+    private static final long serialVersionUID = 620L;
+    private final String role;
+
+    public SimpleGrantedAuthority(String role) {
+        Assert.hasText(role, "A granted authority textual representation is required");
+        this.role = role;
+    }
+
+    public String getAuthority() {
+        return this.role;
+    }
+
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        } else if (obj instanceof SimpleGrantedAuthority) {
+            SimpleGrantedAuthority sga = (SimpleGrantedAuthority)obj;
+            return this.role.equals(sga.getAuthority());
+        } else {
+            return false;
+        }
+    }
+
+    public int hashCode() {
+        return this.role.hashCode();
+    }
+
+    public String toString() {
+        return this.role;
+    }
+}
+```
+* getAuthority(): AuthorizationManager가 GrantedAuthority의 정확한 문자열 표현을 얻기 위해 사용 된다.
+
+#### 사용자 정의 역할 접두사
+* 기본적으로 역할 기반의 인가 규칙은 역할 앞에 `ROLE_`를 접두사로 사용한다. 즉 `USER` 역할을 가진 보안 컨텍스트가 필요한 인가 규칙이 있으면 SpringSecurity는 기본적으로 `ROLE_USER`를 반환하는 GrantedAuthority.getAuthority를 찾는다.
+* GrantedAuthorityDefaults는 사용자 지정할 수 있으며, GrantedAuthorityDefaults는 역할 기반 인가 규칙에 사용할 접두사를 사용자 정의하는데 사용 사용된다.
