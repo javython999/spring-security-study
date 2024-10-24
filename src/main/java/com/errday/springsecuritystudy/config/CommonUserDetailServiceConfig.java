@@ -12,7 +12,8 @@ public class CommonUserDetailServiceConfig {
 
     @Bean
     public UserDetailsService userDetailsService() {
-        UserDetails user = User.withUsername("user").password("{noop}1111").roles("USER").build();
+        //UserDetails user = User.withUsername("user").password("{noop}1111").roles("USER").build();
+        UserDetails user = User.withUsername("user").password("{noop}1111").authorities("MYPRIFIX_USER").build();
         UserDetails manager = User.withUsername("manager").password("{noop}1111").roles("MANAGER").build();
         UserDetails admin = User.withUsername("admin").password("{noop}1111").roles("ADMIN", "WRITE", "SECURE").build();
         UserDetails db = User.withUsername("db").password("{noop}1111").roles("DB").build();
