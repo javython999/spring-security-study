@@ -1580,3 +1580,62 @@ public final class SimpleGrantedAuthority implements GrantedAuthority {
 #### 사용자 정의 역할 접두사
 * 기본적으로 역할 기반의 인가 규칙은 역할 앞에 `ROLE_`를 접두사로 사용한다. 즉 `USER` 역할을 가진 보안 컨텍스트가 필요한 인가 규칙이 있으면 SpringSecurity는 기본적으로 `ROLE_USER`를 반환하는 GrantedAuthority.getAuthority를 찾는다.
 * GrantedAuthorityDefaults는 사용자 지정할 수 있으며, GrantedAuthorityDefaults는 역할 기반 인가 규칙에 사용할 접두사를 사용자 정의하는데 사용 사용된다.
+
+### 인가 관리자 이해 - AuthorizationManager
+* AuthorizationManager는 인증된 사용자가 요청자원에 접근할 수 있는지 여부를 결정하는 인터페이스로서 인증된 사용자의 권한 정보와 요청 자원의 보안 요구사항을 기반으로 권한 부여 결정을 내린다.
+* AuthorizationManager는 SpringSecurity의 요청 기반, 메서드 기반의 인가 구성 요소에서 호출되며 최종 액세스 제어 결정을 수행한다.
+* AuthorizationManager는 SpringSecurity의 필수 구성요소로서 권한 부여 처리는 AuthorizationFilter를 통해 이루어지며 AuthorizationFilter는 AuthorizationManager를 호출하여 권한 부여 걸정을 내린다.
+
+#### 구조
+```java
+@FunctionalInterface
+public interface AuthorizationManager<T> {
+    default void verify(Supplier<Authentication> authentication, T object) {
+        AuthorizationDecision decision = this.check(authentication, object);
+        if (decision != null && !decision.isGranted()) {
+            throw new AccessDeniedException("Access Denied");
+        }
+    }
+
+    @Nullable
+    AuthorizationDecision check(Supplier<Authentication> authentication, T object);
+}
+```
+* verify()
+  * check를 호출해서 반환된 값이 false를 가진 AuthorizationDecision 인 경우 AccessDeniedException을 throw 한다.
+* check(): 
+  * 권한 부여 걸정을 내릴 때 필요한 모든 관련 정보(인증객체, 체크 대상(권한정보, 요청정보, 호출정보 등..))가 전달된다.
+  * 액세스가 허용되면 true를 포함하는 AuthorizationDecision, 거부되면 false를 포함하는 AuthorizationDecision, 결정을 내릴 수 없는 경우 null을 반환한다.
+
+#### AuthorizationManager 클래스 계층 구조
+* AuthorizationManager
+  * RequestMatcherDelegatingAuthorizationManager(요청 기반 권한 부여 관리자)
+    * AuthenticatedAuthorizationManager
+    * AuthorityAuthorizationManager
+    * WebExpressionAuthorizationManager
+  * PreAuthorizeAuthorizationManager(메서드 기반 권한 부여 관리자)
+  * PostAuthorizeAuthorizationManager(메서드 기반 권한 부여 관리자)
+  * Jsr250AuthorizationManager(메서드 기반 권한 부여 관리자)
+  * SecuredAuthorizationManager(메서드 기반 권한 부여 관리자)
+
+#### AuthorizationManager 구현체 종류 및 특징
+* AuthorityAuthorizationManager
+  * 특정 권한을 가진 사용자에게만 접근을 허용한다. 주로 사용자의 권한(예: ROLE_USER, ROLE_ADMIN)을 기반으로 접근을 제어한다.
+* AuthenticationAuthorizationManager
+  * 인증된 사용자에게 접근을 허용한다. 이 클래스는 사용자가 시스템에 로그인했는지 여부를 기준으로 결정한다.
+* WebExpressionAuthorizationManager
+  * 웹 보안 표현식을 사용하여 권한을 관리한다. 예를 들어, `hasRole('ADMIN')` 또는 `hasAuthority('WRITE_PERMISSIONS')`와 같은 표현식을 사용할 수 있다.
+* RequestMatcherDelegatingAuthorizationManager
+  * 인가설정에서 지정한 모든 요청패턴과 권한 규칙을 매핑한 정보를 가지고 있으며 권한 검사 시 가장 적합한 AuthorizationManager 구현체를 선택해 위임한다.
+* PreAuthorizeAuthorizationManager
+  * 메소드 실행 전에 권한을 검사한다. @PreAuthorize 애너테이션과 함께 사용되며, 메소드 실행 전에 사용자의 권한을 확인한다.
+* PostAuthorizeAuthorizationManager
+  * 메소드 실행 후에 권한을 검사한다. @PostAuthorize 애너테이션과 함께 사용되며, 메소드 실행 후 결과에 따라 접근을 허용하거나 거부한다.
+* Jsr250AuthorizationManager
+  * JSR-250 애너테이션(@RolesAllowed, @DenyAll, @PermitAll)을 사용하여 권한을 관리한다.
+* SecuredAuthorizationManager
+  * @Secured 애너테이션을 사용하여 메소드 수준의 보안을 제공한다. 이 애너테이션은 특정 권한을 가진 사용자만 메소드에 접근할 수 있게 한다.
+
+### 요청 기반 인가 관리자 - AuthorityAuthorizationManager
+* 스프링 시큐리티는 요청 기반의 인증된 사용자 및 특정 권한을 가진 사용자의 자원접근 허용여부를 결정하는 인가 관리자 클래스들을 제공한다.
+* 대표적으로 AuthorityAuthorizationManager, AuthenticationAuthorizationManager와 대리자인 RequestMatcherDelegatingAuthorizationManager가 있다.
