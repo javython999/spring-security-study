@@ -24,5 +24,10 @@ public class IndexController {
         return "admin";
     }
 
+    @GetMapping("/secure")
+    public String secure() {
+        return "secure";
+    }
+
 
 }
