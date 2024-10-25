@@ -1639,3 +1639,47 @@ public interface AuthorizationManager<T> {
 ### 요청 기반 인가 관리자 - AuthorityAuthorizationManager
 * 스프링 시큐리티는 요청 기반의 인증된 사용자 및 특정 권한을 가진 사용자의 자원접근 허용여부를 결정하는 인가 관리자 클래스들을 제공한다.
 * 대표적으로 AuthorityAuthorizationManager, AuthenticationAuthorizationManager와 대리자인 RequestMatcherDelegatingAuthorizationManager가 있다.
+
+### 요청 기반 Custom AuthorizationManager 구현
+* 스프링 시큐리티 인가 설정 시 선언적 방식이 아닌 프로그래밍 방식으로 구현할 수 있으며 access(AuthorizationManager) API를 사용한다.
+* access()에는 AuthorizationManager<RequestAuthorizationContext> 타입의 객체를 전달할 수 있으며 사용자의 요청에 대한 권한 검사를 access()에 지정한 AuthorizationManager가 처리하게 된다.
+* accesss()에 지정한 AuthorizationManager 객체는 RequestMatcherDelegatingAuthorizationManager의 매핑 속성에 저장된다.
+```java
+http.authorizeHttpRequests(auth -> auth.requestMatcher().access(AuthorizationManager))
+```
+#### 적용
+* 특정 엔드포인트에 대한 권한 검사를 수행하기 위해 AuthorizationManager를 구현하여 설정한다.
+```java
+http.authorizeHttpRequests(auth -> auth
+    .requestMatchers("/user", "/myPage").hasAuthority("USER")
+    .requestMatchers("/admin").hasRole("ADMIN")
+    .requestMatchers("/api").access(new CustomAuthorizationManager())
+);
+```
+* `/user`, `/myPage`, `/admin` 요청 패턴의 권한 검사는 AuthorityAuthorizationManager가 처리한다.
+* `/api`, 요청 패턴의 권한 검사는 CustomAuthorizationManager가 처리한다.
+
+#### CustomAuthorizationManager
+
+```java
+import java.util.function.Supplier;
+
+public class CustomAuthorizationManager implements AuthorizationManager<RequestAuthorizationContext> {
+  private static final String REQUIRED_ROLE = "ROLE_SECURE";
+
+  @Override
+  public AuthorizationDecision check(Supplier<Authentication> authentication, RequestAuthorizationContext object) {
+      Authentication auth = authentication.get();
+      
+      // 인증 정보가 없거나 인증 되지 않은 경우
+      if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+          return new AuthorizationDecision(false);
+      }
+      
+      boolean hasRequiredRole = auth.getAuthorities().stream()
+              .anyMatch(grantedAuthority -> REQUIRED_ROLE.equals(grantedAuthority.getAuthority()));
+      
+      return new AuthorizationDecision(hasRequiredRole);
+  }
+}
+```
