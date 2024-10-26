@@ -1683,3 +1683,98 @@ public class CustomAuthorizationManager implements AuthorizationManager<RequestA
   }
 }
 ```
+
+### RequestMatcherDelegatingAuthorizationManager로 인가 설정 응용하기
+* RequestMatcherDelegatingAuthorizationManager의 mapping 속성에 직접 RequestMatcherEntry 객체를 생성하고 추가한다.
+```java
+public class RequestMatcherEntry<T> {
+    private final RequestMatcher requestMatcher;
+    private final T entry;
+
+    public RequestMatcherEntry(RequestMatcher requestMatcher, T entry) {
+        this.requestMatcher = requestMatcher;
+        this.entry = entry;
+    }
+
+    public RequestMatcher getRequestMatcher() {
+        return this.requestMatcher;
+    }
+
+    public T getEntry() {
+        return this.entry;
+    }
+}
+```
+* getRequestMatcher(): 요청 패턴을 저장한 RequestMatcher 객체를 반환한다.
+* getEntry(): AuthorizationManager 객체를 반환한다.
+
+```java
+List<RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>>> mappings = new ArrayList<>();
+
+RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>> requestMatcherEntry = 
+    new RequestMatcherEntry<>(new MvcRequestMatcher(introspector, "/user"), AuthorityAthorizationManager.hasAuthority("ROLE_USER"));
+
+mappings.add(requestMatcherEntry);
+```
+
+```java
+RequestMatcherDelegatingAuthorizationManager.builder().mappings(maps -> maps.addAll(mappings)).build();
+```
+#### 적용
+* RequestMatcherDelegatingAuthorizationManager를 감싸는 CustomRequestMatcherDelegatingAuthorizationManager를 구현한다.
+```java
+http.authorizeHttpRequest(auth -> auth.anyRequest().access(new CustomRequestMatcherDelegatingAuthorizationManager()));
+```
+
+#### SecurityConfig.java
+```java
+@Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        return http.authorizeHttpRequests(auth -> auth.anyRequest().access(authorizationManager(null))).build();
+    }
+
+    @Bean
+    public AuthorizationManager<RequestAuthorizationContext> authorizationManager(HandlerMappingIntrospector introspector) {
+        List<RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>>> mappings = new ArrayList<>();
+
+        RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>> entry0 =
+                new RequestMatcherEntry<>(new MvcRequestMatcher(introspector, "/user"), AuthorityAuthorizationManager.hasAuthority("ROLE_USER"));
+
+        RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>> entry1 =
+                new RequestMatcherEntry<>(new MvcRequestMatcher(introspector, "/admin"), AuthorityAuthorizationManager.hasRole("ADMIN"));
+
+        RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>> entry2 =
+                new RequestMatcherEntry<>(AnyRequestMatcher.INSTANCE, new AuthenticatedAuthorizationManager<>());
+
+        mappings.add(entry0);
+        mappings.add(entry1);
+        mappings.add(entry2);
+
+        return new CustomRequestMatcherDelegatingAuthorizationManager(mappings);
+    }
+```
+
+#### CustomRequestMatcherDelegatingAuthorizationManager.java
+```java
+public class CustomRequestMatcherDelegatingAuthorizationManager implements AuthorizationManager<RequestAuthorizationContext> {
+
+    private final RequestMatcherDelegatingAuthorizationManager manager;
+
+    public CustomRequestMatcherDelegatingAuthorizationManager(List<RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>>> mappings) {
+        Assert.notEmpty(mappings, "mappings must not be empty");
+        manager = RequestMatcherDelegatingAuthorizationManager.builder().mappings(maps -> maps.addAll(mappings)).build();
+    }
+
+    @Override
+    public AuthorizationDecision check(Supplier<Authentication> authentication, RequestAuthorizationContext object) {
+        return manager.check(authentication, object.getRequest());
+    }
+
+    @Override
+    public void verify(Supplier<Authentication> authentication, RequestAuthorizationContext object) {
+        AuthorizationManager.super.verify(authentication, object);
+    }
+}
+```
+* 요청에 대한 권한 검사를 RequestMatcherDelegatingAuthorizationManager 객체가 수행하도록 한다.
+* RequestMatcherDelegatingAuthorizationManager > CsutomRequestMatcherDelegatingAuthorizationManager > RequestMatcherDelegatingAuthorizatioinManager 구조는 개선이 필요하다.
