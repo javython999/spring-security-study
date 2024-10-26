@@ -1778,3 +1778,36 @@ public class CustomRequestMatcherDelegatingAuthorizationManager implements Autho
 ```
 * 요청에 대한 권한 검사를 RequestMatcherDelegatingAuthorizationManager 객체가 수행하도록 한다.
 * RequestMatcherDelegatingAuthorizationManager > CsutomRequestMatcherDelegatingAuthorizationManager > RequestMatcherDelegatingAuthorizatioinManager 구조는 개선이 필요하다.
+
+## 메서드 기반 인가 관리자 - PreAuthorizeAuthorizationManager
+* 스프링 시류키티는 메서드 기반의 인증된 사용자 및 특정권한을 가진 사용자의 자원접근 허용여부를 결정하는 인가 관리자 클래스들을 제공한다.
+* PreAuthorizeAuthorizationManager, PostAuthorizeAuthorizationManager, Jsr250AuthorizationManager, SecuredAuthorizationManger가 있다.
+* 메서드 기반 권한 부여는 내부적으로 AOP 방식에 초기화 설정이 이루어지며 메서드의 호출을 MethodInterceptor가 가로채어 처리하고 있다.
+
+### 메서드 인가 처리
+```java
+@PreAuthorize("hasAuthority('ROLE_USER')")
+public List<User> users() {
+    System.out.println("users: " + UserRepositoriy.findAll());
+}
+```
+
+### 메서드 권한 부여 초기화 과정
+1. 스프링은 초기화 시 생성되는 전체 빈을 검사하면서 빈이 가진 메소드 중에서 보안이 설정된 메소드가 있는지 탐색한다.
+2. 보안이 설정된 메소드가 있다면 스프링은 그 빈의 프록시 객체를 자동으로 생성한다.(기본적으로 Cglib 방식으로 생성)
+3. 보안이 설정된 메소드에는 인가처리 기능을 하는 Advice를 등록한다.
+4. 스프링은 빈 참조시 실제 빈이 아닌 프록시 빈 객체를 참조하도록 처리한다.
+5. 초기화 과정이 종료된다.
+6. 사용자는 프록시 객체를 통해 메소드를 호출하게 되고 프록시 객체는 Advice가 등록된 메서드가 있다면 호출하여 작동시킨다.
+7. Advice는 메소드 진입 전 인가처리를 하게 되고 인가처리가 승인되면 실체 객체의 메소드를 호출하게 되고 인가처리가 거부되면 예외가 발생하고 메소드 진입이 실패한다.
+
+#### 메서드 Interceptor 구조
+* MethodInterceptor
+  * AuthorizationManagerBeforeMethodInterceptor
+    * 지정된 AuthorizationManager를 사용하여 Authentication이 보안 메서드를 호출 할 수 있는지 여부를 결정하는 MethodInterceptor 구현체
+  * AuthorizationManagerAfterMethodInterceptor
+    * 지정된 AuthorizationManager를 사용하여 Authentication이 보안 메서드의 반환 결과에 접근 할 수 있는지 여부를 결정할 수있는 구현체
+  * PreFilterAuthorizationMethodInterceptor
+    * @PreFilter 애너테이션에서 표현식을 평가하여 메소드 인자를 필터링하는 구현체
+  * PostFilterAuthorizationMethodInterceptor
+    * @PostFilter 애너테이션에서 표현식을 평가하여 보안 메서드에서 반환 객체를 필터링하는 구현
