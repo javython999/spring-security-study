@@ -1904,3 +1904,43 @@ public enum AuthorizationInterceptorsOrder {
   * 위의 order = 0 설정은 트랜잭션 관리가 `@PreFilter` 이전에 실행되도록 하며 `@Transactional` 애너테잉션이 적용된 메소드가 스프링 시큐리티의 `@PostAuthorize`와 같은 보안 애너테이션보다 먼저 실해오디어 트랜잭션이 열린 상태에서 보안 검사가 이루어지도록 할 수 있다. 
     이러한 설정은 트랜잭션 관리와 보안 검사의 순서에 따른 의도하지 않은 사이드 이펙트를 방지할 수 있다.
 * AuthorizationInterceptorsOrder를 사용하여 인터셉터 간 순서를 지정할 수 있다.
+
+### 포인트 컷 메서드 보안 구현하기 - AspectJExpressionPointcut / ComposablePointcut
+* 메서드 보안은 AOP를 기반으로 구축되었기 때문에 애너테이션이 아닌 패턴 형태로 권한 규칙을 선언할 수 있으며 이는 요청 수준의 인가와 유사한 방식이다.
+* 자체 어드바이저(Advisor)를 발행하거나 포인트컷(Pointcut)을 사용하여 AOP 표현식을 애플리케이션의 인가 규칙에 맞게 매칭할 수있으며 이를 통해 애너테이션을 사용하지 않고도 메서드 수준에서 보안 정책을 구현할 수있다.
+
+#### 빈 정의하기 - 단일 포인트컷
+```java
+@Bean
+@Role(BeanDefinition.ROLE_INFRASTRUCTURE)
+public Advisor protectServicePointcut() {
+    AspectJExpressionPointcut pattern = new AspectJExpressionPointcut();
+    pattern.setExpression("execution(* *.Myservice.user(..))");
+    manager = AthorityAuthorizationManager.hasRole("USER");
+    return new AuthorizationManagerBeforeMethodInterceptor(pattern, manager);
+}
+```
+
+#### 빈 정의하기 - 다중 포인트컷
+```java
+@Bean
+@Role(BeanDefinition.ROLE_INFRASTRUCTURE)
+public Advisor protectServicePointcut() {
+  return new AuthorizationManagerBeforeMethodInterceptor(createCompositePointcut(), hasRole("USER"));
+
+}
+
+public Pointcut createCompositePointcut() {
+  AspectJExpressionPointcut pointcut0 = new AspectJExpressionPointcut();
+  pointcut0.setExpression("execution(* *.Myservice.user(..))");
+
+  AspectJExpressionPointcut pointcut1 = new AspectJExpressionPointcut();
+  pointcut1.setExpression("execution(* *.Myservice.display(..))");
+  
+  // 두 포인트컷을 조합
+  ComposablePointcut composablePointcut = new ComposablePointcut(pointcut0);
+  composablePointcut.union(pointcut1);
+  
+  return composablePointcut;
+}
+```
