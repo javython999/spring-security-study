@@ -1944,3 +1944,25 @@ public Pointcut createCompositePointcut() {
   return composablePointcut;
 }
 ```
+### AOP 메서드 보안 구현하기 - MethodInterceptor, Pointcut, Advisor
+* MethodInterceptor, Pointcut, Advisor, AuthorizationManager 등을 커스텀하게 생성하여 AOP 메서드 보안을 구현 할 수 있다.
+
+#### AOP 요소 이해
+* Advisor
+  * AOP Advisor와 Advisor 적용 가능성을 결정하는 포인트컷을 가진 기본 인터페이스다.
+* MethodInterceptor(Advisor)
+  * 대상 객체릃호출하기 전과 후에 추가 작업을 수행하기 위한 인터페이스로서 수행 이후 실제 대상 객체의 조인 포인트를 호출(메서드 호출)을 위해 Joinpoint.proceed()를 호출한다.
+* Pointcut
+  * AOP에서 Advisor가 적용될 메소드나 클래스를 정의하는 것으로서 어드바이스가 실행되어야 하는 '적용 지점'이나 '조건'을 지정한다.
+  * ClassFilter와 MethodMatcher를 사용해서 어떤 클래스 및 어떤 메서드에 Advice를 적용할 것인지 결정한다.
+
+#### AOP 초기화
+* 현재 애플리케이션 컨텍스트 내의 모든 AspectJ 애너테이션과 스프링 어드바이저들을 처리한다.
+* 포인트컷 조건에 해당하는 클래스와 메서드를 찾고 대상 클래스의 프록시를 생성한다.
+
+#### AOP 적용 순서
+1. CustomMethodInterceptor를 생성하고 메서드 보안 검사를 수행할 AuthorizationManager를 CustomMethodInterceptor에 전달한다.
+2. CustomPointcut을 생성하고 프록시 대상 클래스와 대상 메서드를 결정할 수 있도록 포인트컷 표현식을 정의한다.
+3. DefaultPointcutAdvisor를 생성하고 CustomMethodInterceptor와 CustomPointcut을 DefaultPointcutAdvisor에 전달한다.
+4. 서비스를 호출하면 Pointcut으로부터 대상 클래스와 대상 메서드에 등록된 MethodInterceptor를 탐색하고 이를 호출하여 AOP를 수행한다.
+
