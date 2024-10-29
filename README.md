@@ -1966,3 +1966,101 @@ public Pointcut createCompositePointcut() {
 3. DefaultPointcutAdvisor를 생성하고 CustomMethodInterceptor와 CustomPointcut을 DefaultPointcutAdvisor에 전달한다.
 4. 서비스를 호출하면 Pointcut으로부터 대상 클래스와 대상 메서드에 등록된 MethodInterceptor를 탐색하고 이를 호출하여 AOP를 수행한다.
 
+---
+## 이벤트 처리
+### 인증 이벤트 - Authentication Events
+* 스프링 시큐리티는 인증이 성공항거나 실패하게되면 AuthenticationSuccessEvent 또는 AuthenticationFailureEvent를 발생시킨다.
+* 이벤트를 수신하려면 ApplicationEventPublisher를 사용하거나 시큐리티에서 제공하는 AuthenticationEventPublisher를 사용해서 발행해야 한다.
+* AuthenticationEventPublisher의 구현체로 DefaultAuthenticationEventPublisher가 제공된다.
+
+#### 이벤트 발행 방법
+* ApplicationEventPublisher.publishEvent(ApplicationEvent)
+* AuthenticationEventPublisher.publishAuthenticationSuccess(Authentication)
+* AuthenticationEventPublisher.publishAuthenticationFailure(AuthenticationException, Authentication)
+
+#### 이벤트 수신 방법
+```java
+@Component
+public class AuthencticationEvents { 
+  @EventListener 
+  public void onSuccess(AuthenticationSuccess success) {...}
+
+  @EventListener
+  public void onFailure(AuthenticationSuccess failure) {...}
+
+}
+```
+
+#### 인증 이벤트 종류
+* AbstractAuthenticationEvent
+* AbstractAuthenticationFailureEvent
+* AuthenticationSuccessEvent
+* InteractiveAuthenticationSuccessEvent
+* AuthenticationFailureBadCredentialsEvent
+* AuthenticationFailureCredentialsExpiredEvent
+* AuthenticationFailureDisabledEvent
+* AuthenticationFailureExpiredEvent
+* AuthenticationFailureLockedEvent
+* AuthenticationFailureProviderNotFoundEvent
+* AuthenticationFailureProxyUntrustedEvent
+* AuthenticationFailureServiceExceptionEvent
+
+#### 인증 성공 이벤트 발행 & 수신
+```java
+@Component
+public class AuthenticationSuccessEvents {
+    @EventListener
+    public void onSuccess(AuthentcationSuccessEvent success) {
+      ...
+    }
+  
+    @EventListener
+    public void onSuccess(InteractiveAuthentcationSuceeesEvent success) {
+        ...
+    }
+
+    @EventListener
+    public void onSuccess(CustomAuthenticationSuccessEvent success) {
+          ...
+    }
+}
+```
+```java
+import java.io.IOException;new AuthenticationSuccessHandler() {
+  @Override
+  public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException {
+      applicationEventPublisher.publishEvent(new CustomAuthenticationSuccessEvent(authentication));
+  }
+}
+```
+#### 인증 실패 이벤트 발행 & 수신
+```java
+@Component
+public class AuthenticationFailureEvents {
+    @EventListener
+    public void onFailure(AbstractAuthenticationFailureEvent failures) {
+      ...
+    }
+  
+    @EventListener
+    public void onFailure(AuthenticationFailureBadCredentialsEvent failures) {
+        ...
+    }
+
+    @EventListener
+    public void onFailure(AuthenticationFailureDisabledEvent failures) {
+          ...
+    }
+}
+```
+#### ApplicationEventPublisher로 발행
+```java
+applicationEventPublisher.publishEvent(new AuthenticationFailureDisabledEvnet(authentication, new DisabledException("DisabledException")));
+applicationEventPublisher.publishEvent(new AuthenticationFailureBadCredentialsEvent(authentication, new BadCredentialsException("BadCredentialException")));
+```
+
+#### AuthenticationEventPublisher로 발행
+```java
+authenticationEventPublisher.publishAuthenticationFailure(new DisabledException("DisabledException"), authentication);
+authenticationEventPublisher.publishAuthenticationFailure(new BadCredentialsException("BadCredentialException"), authentication);
+```
