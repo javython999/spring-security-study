@@ -1,10 +1,13 @@
 package com.errday.springsecuritystudy.config;
 
+import com.errday.springsecuritystudy.CustomAuthenticationProvider;
+import com.errday.springsecuritystudy.CustomAuthenticationProvider2;
+import com.errday.springsecuritystudy.CustomAuthenticationSuccessEvent;
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
-import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
-import org.springframework.security.config.Customizer;
+import org.springframework.security.authentication.DefaultAuthenticationEventPublisher;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -12,30 +15,35 @@ import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
 
+    private final ApplicationEventPublisher eventPublisher;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.authorizeRequests(auth -> auth
-                .requestMatchers("/user").hasRole("USER")
-                .requestMatchers("/db").hasRole("DB")
-                .requestMatchers("/admin").hasRole("ADMIN")
+        http.authorizeHttpRequests(auth -> auth
                 .anyRequest().authenticated())
-            .formLogin(Customizer.withDefaults())
+            .formLogin(form -> form
+                    .successHandler(
+                            (request, response, authentication) -> {
+                                eventPublisher.publishEvent(new CustomAuthenticationSuccessEvent(authentication));
+                                response.sendRedirect("/");
+                            }
+                    )
+            )
+                .authenticationProvider(customAuthenticationProvider2())
             .csrf(AbstractHttpConfigurer::disable);
         return http.build();
     }
 
     @Bean
-    public RoleHierarchy roleHierarchy() {
-        RoleHierarchyImpl roleHierarchy = new RoleHierarchyImpl();
-        roleHierarchy.setHierarchy(
-                "ROLE_ADMIN > ROLE_DB\n"
-                + "ROLE_DB > ROLE_MANAGER\n"
-                + "ROLE_MANAGER > ROLE_USER\n"
-                + "ROLE_USER > ROLE_ANONYMOUS\n"
-        );
-        return roleHierarchy;
+    public DefaultAuthenticationEventPublisher authenticationEventPublisher(ApplicationEventPublisher eventPublisher) {
+        return new DefaultAuthenticationEventPublisher(eventPublisher);
+    }
+
+    @Bean
+    public CustomAuthenticationProvider2 customAuthenticationProvider2() {
+        return new CustomAuthenticationProvider2(authenticationEventPublisher(null));
     }
 }
