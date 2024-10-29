@@ -2064,3 +2064,54 @@ applicationEventPublisher.publishEvent(new AuthenticationFailureBadCredentialsEv
 authenticationEventPublisher.publishAuthenticationFailure(new DisabledException("DisabledException"), authentication);
 authenticationEventPublisher.publishAuthenticationFailure(new BadCredentialsException("BadCredentialException"), authentication);
 ```
+
+### 인증 이벤트 - AuthenticationEventPublisher 활용
+### 커스텀 예외 & 이벤트 추가
+
+```java
+import javax.naming.AuthenticationException;
+import java.util.Collections;
+
+@Bean
+public AuthenticationEventPublisher customAuthenticationEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
+  Map<Class<? extends AuthenticationException>, Class<? extends AbstractAuthenticationFailureEvent>> mapping =
+          Collections.singletonMap(CustomException.class, CustomAuthenticationFauilureEvent.class);
+  
+  DefaultAuthenticationEventPublisher authenticationEventPublisher = new DefaultAuthenticationEventPublisher(applicationEventPublisher);
+  authenticationEventPublisher.setAdditionalExceptionMapping(mapping); // CustomException을 던지면 CustomAuthenticationFailureEvent를 발행하도록 추가
+  
+  return authenticationEventPublisher;
+}
+```
+
+```java
+authenticationEventPublisher.publishAuthenticationFailure(new CustomException("CustomException"), authentication);
+```
+
+```java
+@EventListener
+public void onFailure(CustomAuthenticationFailureEvent failures) { // 커스텀 예외에 대해 이벤트를 수신할 수 있다.
+  ...
+}
+```
+
+#### 기본 이벤트 설정
+* AuthenticationException이 발생했을 때 해당 예외에 매핑 된 이벤트가 발행이 안되어 있을 겨웅 기본 AuthenticationFailureEvent를 발행 및 수신할 수 있다.
+```java
+@Bean
+public AuthenticationEventPublisher defaultAuthenticationEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
+  DefaultAuthenticationEventPublisher authenticationEventPublisher = DefaultAuthenticationEventPublisher(applicationEventPublisher);
+  authenticationEventPublisher.setDefaultAuthenticationFailureEvent(CustomDefaultAutneticationFailureEvent.class); // 기본 이벤트 설정
+  return authenticationEventPublisher;
+}
+```
+```java
+eventPublisher.publishAuthenticationFailure(new CustomAuthenticationException("CustomAuthenticationException"), authentication);
+```
+```java
+@EventListener
+public void onFailure(CustomAUthenticationFailureEvent failures) { // 모든 AuthenticationException 예외에 대해 이벤트를 수신할 수 있다.
+  ...
+}
+```
+* CustomAuthenticationException에 발행된 이벤트가 없으나 기본 이벤트인 CustomAuthenticationFailureEvent를 수신하고 있다.
