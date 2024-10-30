@@ -17,13 +17,16 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.authorizeRequests(auth -> auth
-                .requestMatchers("/user").hasRole("USER")
-                .requestMatchers("/db").hasRole("DB")
-                .requestMatchers("/admin").hasRole("ADMIN")
-                .anyRequest().authenticated())
-            .formLogin(Customizer.withDefaults())
+
+        http
+            .authorizeHttpRequests(authorize -> authorize
+                    .requestMatchers("/user").hasAuthority("ROLE_USER")
+                    .requestMatchers("/db").hasAuthority("ROLE_DB")
+                    .requestMatchers("/admin").hasAuthority("ROLE_ADMIN")
+                    .anyRequest().permitAll())
+//                .formLogin(Customizer.withDefaults())
             .csrf(AbstractHttpConfigurer::disable);
+
         return http.build();
     }
 
