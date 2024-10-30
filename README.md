@@ -2197,3 +2197,377 @@ public class MyAuthorizationEventPublisher implements AuthorizationEventPublishe
     }
 }
 ```
+## 통합하기
+### Servlet API 통합 - SecurityContextHolderAwareRequestFilter
+* 스프링 시큐리티는 다양한 프레임워크 및 API와의 통합을 제공하고 있으며 Servlet 3와 Spring MVC와 통합을 통해 여러 편리한 기능들을 사용할 수 있다.
+* 인증 관련 기능들을 필터가 아닌 서블릿 영역에서 처리할 수 있다.
+
+#### Servlet 3 + 통합
+1) SecurityContexHolderAwareRequestFilter
+   * HTTP 요청이 처리될 때 HttpServletRequest에 보안 관련 메소드를 추가적으로 제공하는 래퍼(SecurityContextHolderAwareReuestWrapper) 클래스를 적용한다.
+   * 이를 통해 개발자는 서블릿 API의 보안 메소드를 사용하여, 인증, 로그인, 로그아웃 등의 작업을 수행할 수 있다.
+2) HttpServlet3RequestFactory
+   * Servlet 3 API와의 통합을 제공하기 위한 Servlet3SecurityContextHolderAwareRequestWrapper 객체를 생성한다.
+3) Servlet3SecurityContextHolderAwareRequestWrapper
+   * HttpServletRequest의 래퍼 클래스로서 Servlet 3.0의 기능을 지원하면서 동시에 SecurityContextHlder와의 통합을 제공한다.
+   * 이 래퍼를 사용함으로써 SecurityContext에 쉽게 접근할 수 있고 Servlet 3.0의 비동기 처리와 같은 기능을 사용하는동안 보안 컨텍스르를 올바르게 관리할 수 있다.
+
+#### 구조 및 API
+```java
+public class SecurityContextHolderAwareRequestFilter extends GenericFilterBean {
+    private SecurityContextHolderStrategy securityContextHolderStrategy = SecurityContextHolder.getContextHolderStrategy();
+    private String rolePrefix = "ROLE_";
+    private HttpServletRequestFactory requestFactory;
+    private AuthenticationEntryPoint authenticationEntryPoint;
+    private AuthenticationManager authenticationManager;
+    private List<LogoutHandler> logoutHandlers;
+    private AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
+    private SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
+
+    public SecurityContextHolderAwareRequestFilter() {
+    }
+
+    public void setSecurityContextRepository(SecurityContextRepository securityContextRepository) {
+        Assert.notNull(securityContextRepository, "securityContextRepository cannot be null");
+        this.securityContextRepository = securityContextRepository;
+    }
+
+    public void setSecurityContextHolderStrategy(SecurityContextHolderStrategy securityContextHolderStrategy) {
+        Assert.notNull(securityContextHolderStrategy, "securityContextHolderStrategy cannot be null");
+        this.securityContextHolderStrategy = securityContextHolderStrategy;
+    }
+
+    public void setRolePrefix(String rolePrefix) {
+        Assert.notNull(rolePrefix, "Role prefix must not be null");
+        this.rolePrefix = rolePrefix;
+        this.updateFactory();
+    }
+
+    public void setAuthenticationEntryPoint(AuthenticationEntryPoint authenticationEntryPoint) {
+        this.authenticationEntryPoint = authenticationEntryPoint;
+    }
+
+    public void setAuthenticationManager(AuthenticationManager authenticationManager) {
+        this.authenticationManager = authenticationManager;
+    }
+
+    public void setLogoutHandlers(List<LogoutHandler> logoutHandlers) {
+        this.logoutHandlers = logoutHandlers;
+    }
+
+    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {
+        chain.doFilter(this.requestFactory.create((HttpServletRequest)req, (HttpServletResponse)res), res);
+    }
+
+    public void afterPropertiesSet() throws ServletException {
+        super.afterPropertiesSet();
+        this.updateFactory();
+    }
+
+    private void updateFactory() {
+        String rolePrefix = this.rolePrefix;
+        this.requestFactory = this.createServlet3Factory(rolePrefix);
+    }
+
+    public void setTrustResolver(AuthenticationTrustResolver trustResolver) {
+        Assert.notNull(trustResolver, "trustResolver cannot be null");
+        this.trustResolver = trustResolver;
+        this.updateFactory();
+    }
+
+    private HttpServletRequestFactory createServlet3Factory(String rolePrefix) {
+        HttpServlet3RequestFactory factory = new HttpServlet3RequestFactory(rolePrefix, this.securityContextRepository);
+        factory.setTrustResolver(this.trustResolver);
+        factory.setAuthenticationEntryPoint(this.authenticationEntryPoint);
+        factory.setAuthenticationManager(this.authenticationManager);
+        factory.setLogoutHandlers(this.logoutHandlers);
+        factory.setSecurityContextHolderStrategy(this.securityContextHolderStrategy);
+        return factory;
+    }
+}
+```
+```java
+final class HttpServlet3RequestFactory implements HttpServletRequestFactory {
+    private Log logger = LogFactory.getLog(this.getClass());
+    private SecurityContextHolderStrategy securityContextHolderStrategy = SecurityContextHolder.getContextHolderStrategy();
+    private final String rolePrefix;
+    private AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
+    private final AuthenticationDetailsSource<HttpServletRequest, ?> authenticationDetailsSource = new WebAuthenticationDetailsSource();
+    private AuthenticationEntryPoint authenticationEntryPoint;
+    private AuthenticationManager authenticationManager;
+    private List<LogoutHandler> logoutHandlers;
+    private SecurityContextRepository securityContextRepository;
+
+    HttpServlet3RequestFactory(String rolePrefix, SecurityContextRepository securityContextRepository) {
+        this.rolePrefix = rolePrefix;
+        this.securityContextRepository = securityContextRepository;
+    }
+
+    void setAuthenticationEntryPoint(AuthenticationEntryPoint authenticationEntryPoint) {
+        this.authenticationEntryPoint = authenticationEntryPoint;
+    }
+
+    void setAuthenticationManager(AuthenticationManager authenticationManager) {
+        this.authenticationManager = authenticationManager;
+    }
+
+    void setLogoutHandlers(List<LogoutHandler> logoutHandlers) {
+        this.logoutHandlers = logoutHandlers;
+    }
+
+    void setTrustResolver(AuthenticationTrustResolver trustResolver) {
+        Assert.notNull(trustResolver, "trustResolver cannot be null");
+        this.trustResolver = trustResolver;
+    }
+
+    void setSecurityContextHolderStrategy(SecurityContextHolderStrategy securityContextHolderStrategy) {
+        Assert.notNull(securityContextHolderStrategy, "securityContextHolderStrategy cannot be null");
+        this.securityContextHolderStrategy = securityContextHolderStrategy;
+    }
+
+    public HttpServletRequest create(HttpServletRequest request, HttpServletResponse response) {
+        Servlet3SecurityContextHolderAwareRequestWrapper wrapper = new Servlet3SecurityContextHolderAwareRequestWrapper(request, this.rolePrefix, response);
+        wrapper.setSecurityContextHolderStrategy(this.securityContextHolderStrategy);
+        return wrapper;
+    }
+
+    private class Servlet3SecurityContextHolderAwareRequestWrapper extends SecurityContextHolderAwareRequestWrapper {
+        private final HttpServletResponse response;
+
+        Servlet3SecurityContextHolderAwareRequestWrapper(HttpServletRequest request, String rolePrefix, HttpServletResponse response) {
+            super(request, HttpServlet3RequestFactory.this.trustResolver, rolePrefix);
+            this.response = response;
+        }
+
+        public AsyncContext getAsyncContext() {
+            AsyncContext asyncContext = super.getAsyncContext();
+            return asyncContext == null ? null : new SecurityContextAsyncContext(asyncContext);
+        }
+
+        public AsyncContext startAsync() {
+            AsyncContext startAsync = super.startAsync();
+            return new SecurityContextAsyncContext(startAsync);
+        }
+
+        public AsyncContext startAsync(ServletRequest servletRequest, ServletResponse servletResponse) throws IllegalStateException {
+            AsyncContext startAsync = super.startAsync(servletRequest, servletResponse);
+            return new SecurityContextAsyncContext(startAsync);
+        }
+
+        public boolean authenticate(HttpServletResponse response) throws IOException, ServletException {
+            AuthenticationEntryPoint entryPoint = HttpServlet3RequestFactory.this.authenticationEntryPoint;
+            if (entryPoint == null) {
+                HttpServlet3RequestFactory.this.logger.debug("authenticationEntryPoint is null, so allowing original HttpServletRequest to handle authenticate");
+                return super.authenticate(response);
+            } else if (this.isAuthenticated()) {
+                return true;
+            } else {
+                entryPoint.commence(this, response, new AuthenticationCredentialsNotFoundException("User is not Authenticated"));
+                return false;
+            }
+        }
+
+        public void login(String username, String password) throws ServletException {
+            if (this.isAuthenticated()) {
+                throw new ServletException("Cannot perform login for '" + username + "' already authenticated as '" + this.getRemoteUser() + "'");
+            } else {
+                AuthenticationManager authManager = HttpServlet3RequestFactory.this.authenticationManager;
+                if (authManager == null) {
+                    HttpServlet3RequestFactory.this.logger.debug("authenticationManager is null, so allowing original HttpServletRequest to handle login");
+                    super.login(username, password);
+                } else {
+                    Authentication authentication = this.getAuthentication(authManager, username, password);
+                    SecurityContext context = HttpServlet3RequestFactory.this.securityContextHolderStrategy.createEmptyContext();
+                    context.setAuthentication(authentication);
+                    HttpServlet3RequestFactory.this.securityContextHolderStrategy.setContext(context);
+                    HttpServlet3RequestFactory.this.securityContextRepository.saveContext(context, this, this.response);
+                }
+            }
+        }
+
+        private Authentication getAuthentication(AuthenticationManager authManager, String username, String password) throws ServletException {
+            try {
+                UsernamePasswordAuthenticationToken authentication = UsernamePasswordAuthenticationToken.unauthenticated(username, password);
+                Object details = HttpServlet3RequestFactory.this.authenticationDetailsSource.buildDetails(this);
+                authentication.setDetails(details);
+                return authManager.authenticate(authentication);
+            } catch (AuthenticationException var6) {
+                AuthenticationException ex = var6;
+                HttpServlet3RequestFactory.this.securityContextHolderStrategy.clearContext();
+                throw new ServletException(ex.getMessage(), ex);
+            }
+        }
+
+        public void logout() throws ServletException {
+            List<LogoutHandler> handlers = HttpServlet3RequestFactory.this.logoutHandlers;
+            if (CollectionUtils.isEmpty(handlers)) {
+                HttpServlet3RequestFactory.this.logger.debug("logoutHandlers is null, so allowing original HttpServletRequest to handle logout");
+                super.logout();
+            } else {
+                Authentication authentication = HttpServlet3RequestFactory.this.securityContextHolderStrategy.getContext().getAuthentication();
+                Iterator var3 = handlers.iterator();
+
+                while(var3.hasNext()) {
+                    LogoutHandler handler = (LogoutHandler)var3.next();
+                    handler.logout(this, this.response, authentication);
+                }
+
+            }
+        }
+
+        private boolean isAuthenticated() {
+            return this.getUserPrincipal() != null;
+        }
+    }
+
+    private static class SecurityContextAsyncContext implements AsyncContext {
+        private final AsyncContext asyncContext;
+
+        SecurityContextAsyncContext(AsyncContext asyncContext) {
+            this.asyncContext = asyncContext;
+        }
+
+        public ServletRequest getRequest() {
+            return this.asyncContext.getRequest();
+        }
+
+        public ServletResponse getResponse() {
+            return this.asyncContext.getResponse();
+        }
+
+        public boolean hasOriginalRequestAndResponse() {
+            return this.asyncContext.hasOriginalRequestAndResponse();
+        }
+
+        public void dispatch() {
+            this.asyncContext.dispatch();
+        }
+
+        public void dispatch(String path) {
+            this.asyncContext.dispatch(path);
+        }
+
+        public void dispatch(ServletContext context, String path) {
+            this.asyncContext.dispatch(context, path);
+        }
+
+        public void complete() {
+            this.asyncContext.complete();
+        }
+
+        public void start(Runnable run) {
+            this.asyncContext.start(new DelegatingSecurityContextRunnable(run));
+        }
+
+        public void addListener(AsyncListener listener) {
+            this.asyncContext.addListener(listener);
+        }
+
+        public void addListener(AsyncListener listener, ServletRequest request, ServletResponse response) {
+            this.asyncContext.addListener(listener, request, response);
+        }
+
+        public <T extends AsyncListener> T createListener(Class<T> clazz) throws ServletException {
+            return this.asyncContext.createListener(clazz);
+        }
+
+        public long getTimeout() {
+            return this.asyncContext.getTimeout();
+        }
+
+        public void setTimeout(long timeout) {
+            this.asyncContext.setTimeout(timeout);
+        }
+    }
+}
+```
+```java
+private class Servlet3SecurityContextHolderAwareRequestWrapper extends SecurityContextHolderAwareRequestWrapper {
+        private final HttpServletResponse response;
+
+        Servlet3SecurityContextHolderAwareRequestWrapper(HttpServletRequest request, String rolePrefix, HttpServletResponse response) {
+            super(request, HttpServlet3RequestFactory.this.trustResolver, rolePrefix);
+            this.response = response;
+        }
+
+        public AsyncContext getAsyncContext() {
+            AsyncContext asyncContext = super.getAsyncContext();
+            return asyncContext == null ? null : new SecurityContextAsyncContext(asyncContext);
+        }
+
+        public AsyncContext startAsync() {
+            AsyncContext startAsync = super.startAsync();
+            return new SecurityContextAsyncContext(startAsync);
+        }
+
+        public AsyncContext startAsync(ServletRequest servletRequest, ServletResponse servletResponse) throws IllegalStateException {
+            AsyncContext startAsync = super.startAsync(servletRequest, servletResponse);
+            return new SecurityContextAsyncContext(startAsync);
+        }
+
+        public boolean authenticate(HttpServletResponse response) throws IOException, ServletException {
+            AuthenticationEntryPoint entryPoint = HttpServlet3RequestFactory.this.authenticationEntryPoint;
+            if (entryPoint == null) {
+                HttpServlet3RequestFactory.this.logger.debug("authenticationEntryPoint is null, so allowing original HttpServletRequest to handle authenticate");
+                return super.authenticate(response);
+            } else if (this.isAuthenticated()) {
+                return true;
+            } else {
+                entryPoint.commence(this, response, new AuthenticationCredentialsNotFoundException("User is not Authenticated"));
+                return false;
+            }
+        }
+
+        public void login(String username, String password) throws ServletException {
+            if (this.isAuthenticated()) {
+                throw new ServletException("Cannot perform login for '" + username + "' already authenticated as '" + this.getRemoteUser() + "'");
+            } else {
+                AuthenticationManager authManager = HttpServlet3RequestFactory.this.authenticationManager;
+                if (authManager == null) {
+                    HttpServlet3RequestFactory.this.logger.debug("authenticationManager is null, so allowing original HttpServletRequest to handle login");
+                    super.login(username, password);
+                } else {
+                    Authentication authentication = this.getAuthentication(authManager, username, password);
+                    SecurityContext context = HttpServlet3RequestFactory.this.securityContextHolderStrategy.createEmptyContext();
+                    context.setAuthentication(authentication);
+                    HttpServlet3RequestFactory.this.securityContextHolderStrategy.setContext(context);
+                    HttpServlet3RequestFactory.this.securityContextRepository.saveContext(context, this, this.response);
+                }
+            }
+        }
+
+        private Authentication getAuthentication(AuthenticationManager authManager, String username, String password) throws ServletException {
+            try {
+                UsernamePasswordAuthenticationToken authentication = UsernamePasswordAuthenticationToken.unauthenticated(username, password);
+                Object details = HttpServlet3RequestFactory.this.authenticationDetailsSource.buildDetails(this);
+                authentication.setDetails(details);
+                return authManager.authenticate(authentication);
+            } catch (AuthenticationException var6) {
+                AuthenticationException ex = var6;
+                HttpServlet3RequestFactory.this.securityContextHolderStrategy.clearContext();
+                throw new ServletException(ex.getMessage(), ex);
+            }
+        }
+
+        public void logout() throws ServletException {
+            List<LogoutHandler> handlers = HttpServlet3RequestFactory.this.logoutHandlers;
+            if (CollectionUtils.isEmpty(handlers)) {
+                HttpServlet3RequestFactory.this.logger.debug("logoutHandlers is null, so allowing original HttpServletRequest to handle logout");
+                super.logout();
+            } else {
+                Authentication authentication = HttpServlet3RequestFactory.this.securityContextHolderStrategy.getContext().getAuthentication();
+                Iterator var3 = handlers.iterator();
+
+                while(var3.hasNext()) {
+                    LogoutHandler handler = (LogoutHandler)var3.next();
+                    handler.logout(this, this.response, authentication);
+                }
+
+            }
+        }
+
+        private boolean isAuthenticated() {
+            return this.getUserPrincipal() != null;
+        }
+    }
+```
