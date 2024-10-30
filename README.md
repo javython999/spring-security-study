@@ -2115,3 +2115,85 @@ public void onFailure(CustomAUthenticationFailureEvent failures) { // 모든 Aut
 }
 ```
 * CustomAuthenticationException에 발행된 이벤트가 없으나 기본 이벤트인 CustomAuthenticationFailureEvent를 수신하고 있다.
+
+### Authorization Events
+* 스프링 시큐리티는 권한 부여 이벤트를 처리를 지원하며 권한이 부여되거나 거부된 경우에 발생하는 이벤트를 수신할 수 있다.
+* 이벤트를 수신하려면 ApplicationEventPublisher를 사용하거나 시큐리티에서 제공하는 AuthorizationEventPublisher를 사용해서 발행해야 한다.
+* AuthorizationEventPublisher의 구현체로 SpringAuthorizationEventPublisher가 제공된다.
+
+#### 이벤트 발행 방법
+* ApplicationEventPublisher.publishEvent(ApplicationEvent)
+* AuthorizationEventPublisher.publishAuthorizationEvent(Supplier<Authentication>, T AuthorizationDecision)
+
+#### 이벤트 수신 방법
+```java
+@Component
+public class Authorization {
+    @EventListner
+    public void onAuthorization(AuthorizationDeniedEvent failure) {...}
+
+    @EventListner
+    public void onAuthorization(AuthorizationGrantedEvent success) {...}
+}
+```
+
+#### 인가 이벤트 발행 & 수신
+* 인가 이벤트를 발행 하기 위해서는 SpringAuthorizationEventPublisher를 빈으로 정의해야 한다.
+```java
+@Bean
+public AutheticationEventPublisher autheticationEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
+    return new SpringAuthorizationEventPublisher(applicationEventPublisher);
+}
+```
+
+```java
+@Component
+public class AuthorizationEvents {
+  @EventListener
+  public void onAuthorization(AuthorizationEvent event) {...}
+
+  @EventListener
+  public void onAuthorization(AuthorizationDeniedEvent failure) {...}
+
+  @EventListener
+  public void onAuthorization(AuthorizationGrantedEvent success) {...}
+}
+```
+
+```java
+@RequiredArgsConstructor
+public class MyAuthorizationEventPublisher implements AuthorizationEventPublisher {
+    private final AuthorizationEventPublisher delegate;
+    private final ApplicationEventPublisher eventPublisher;
+
+    @Override
+    public <T> void publishAuthorizationEvent(Supplier<Authentication> authentication,
+                                              T object, AuthorizationDecision decision) {
+        if (decision == null) {
+            return;
+        }
+        if (!decision.isGranted()) {
+            this.delegate.publishAuthorizationEvent(authentication, object, decision);
+            return;
+        }
+        if (shouldThisEventBePublished(decision)) {
+            AuthorizationGrantedEvent<T> granted = new AuthorizationGrantedEvent<>(
+                    authentication, object, decision);
+            eventPublisher.publishEvent(granted);
+        }
+    }
+
+    private boolean shouldThisEventBePublished(AuthorizationDecision decision) {
+        if (!(decision instanceof AuthorityAuthorizationDecision)) {
+            return false;
+        }
+        Collection<GrantedAuthority> authorities = ((AuthorityAuthorizationDecision) decision).getAuthorities();
+        for (GrantedAuthority authority : authorities) {
+            if ("ROLE_ADMIN".equals(authority.getAuthority())) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+```
