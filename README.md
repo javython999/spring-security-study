@@ -2571,3 +2571,34 @@ private class Servlet3SecurityContextHolderAwareRequestWrapper extends SecurityC
         }
     }
 ```
+
+### Spring MVC 통합 - @AuthentiationPrincipal
+* 스프링 시큐리티는 Spring MVC 인수에 대해 현재 Authentication.getPrincipal()을 자동으로 해결 할 수 있는 AuthenticationPrincipalArgumentResolver를 제공한다.
+* Spring MVC에서 @AuthenticationPrincipal을 메서드 인수에 선언하게 되면 Spring Security와 독립적으로 사용할 수 있다.
+
+
+```java
+// 스프링 시큐리티를 사용 할 경우
+@RequestMapping("/user")
+public void findUser() {
+    Authentication authentication = SecurityContextHolder.getContextHolderStrategy().getAuthentication();
+    CustomUser custom = (CustomUser) authentication == null ? null : authentication.getPrincipal();
+}
+```
+
+```java
+//@AuthenticationPrincipal 애너테이션을 사용 할 경우
+@RequestMapping("/user")
+public void findUser(@AuthenticationPrincipal CustomUser customUser) {
+  customUser == null ? null : customUser.getPrincipal();
+}
+```
+
+#### @AuthenticationPrincipal(expression = "표현식")
+* Principal 객체 내부에서 특정 필드나 메서드에 접근하고자 할 때 사용할 수 있으며 사용자 세부 정보가 Principal 내부의 중첩된 객체에 있는 경우 유용하다.
+```java
+@RequestMapping("/user")
+public void findUser(@AuthenticationPrincipal(expression = "customer") Customer customer) {
+    // @AuthenticationPrincipal(expression = "customer") == Principal.customer
+}
+```
