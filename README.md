@@ -2602,3 +2602,33 @@ public void findUser(@AuthenticationPrincipal(expression = "customer") Customer 
     // @AuthenticationPrincipal(expression = "customer") == Principal.customer
 }
 ```
+
+### Spring MVC 비동기 통합 - WebAsyncManagerIntegrationFilter
+* Spring Security는 Spring MVC Controller에서 Callable을 실행하는 비동기 스레드에 SecurityContext를 자동으로 설정하도록 지원한다.
+* Spring Security는 WebAsyncManager와 통합하여 SecurityContextHolder에서 사용 가능한 SecurityContext를 Callable에서 접근 가능하도록 해준다.
+
+#### WebAsyncManagerIntegrationFilter
+* SecurityContext와 WebAsyncManager 사이의 통합을 제공하며 WebAsyncManager를 생성하고 SecurityContextCallableProcessingInterceptor를 WebAsyncManager에 등록한다.
+
+#### WebAsyncManager
+* 스레드 풀의 비동기 스레드를 생성하고 Callable를 받아 실행시켜주는 주체로서 등록된 SecurityContextCallableProcessingInterceptor를 통해 현재 스레드가 보유하고 있는 SecurityContext 객체를 비동기 스레드의 ThreadLocal에 저장시킨다.
+
+```java
+import java.util.concurrent.Callable;
+
+@Getmapping("/callable")
+public Callable<Authentication> processUpload() {
+  SecurityContext securityContext = SecurityContextHolder.getContextHolderStrategy().getContext();
+
+  return new Callable<Authentication>() {
+    @Override
+    public Authentication call() throws Exception {
+      SecurityContext securityContext = SecurityContextHolder.getContextHolderStrategy().getContext();
+      Authentication authentication = securityContext.getAuthentication();
+      return authentication;
+    }
+  }
+}
+```
+* 비동기 스레드가 수행하는 Callable 영역 내에서 자신의 ThreadLocal에 저장된 SecurityContext를 참조할 수 있으며 이는 부모 스레드가 가지고 있는 SecurityContext와 동일한 객체이다.
+* @Async나 다른 비동기 기술은 스프링 시큐리티와 통합되어 있지 않기 때문에 비동기 스레드에 SecurityContext가 적용되지 않는다.
