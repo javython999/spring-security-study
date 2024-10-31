@@ -8,6 +8,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -21,9 +22,12 @@ public class SecurityConfig {
                 .requestMatchers("/user").hasRole("USER")
                 .requestMatchers("/db").hasRole("DB")
                 .requestMatchers("/admin").hasRole("ADMIN")
-                .anyRequest().authenticated())
+                .anyRequest().permitAll())
             .formLogin(Customizer.withDefaults())
             .csrf(AbstractHttpConfigurer::disable);
+
+        SecurityContextHolder.setStrategyName(SecurityContextHolder.MODE_INHERITABLETHREADLOCAL);
+
         return http.build();
     }
 
