@@ -24,5 +24,9 @@ public class IndexController {
         return "admin";
     }
 
+    @GetMapping("/api")
+    public String api() {
+        return "api";
+    }
 
 }

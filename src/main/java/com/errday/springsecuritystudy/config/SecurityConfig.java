@@ -2,6 +2,7 @@ package com.errday.springsecuritystudy.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.config.Customizer;
@@ -16,14 +17,18 @@ public class SecurityConfig {
 
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.authorizeRequests(auth -> auth
-                .requestMatchers("/user").hasRole("USER")
-                .requestMatchers("/db").hasRole("DB")
-                .requestMatchers("/admin").hasRole("ADMIN")
-                .anyRequest().authenticated())
-            .formLogin(Customizer.withDefaults())
-            .csrf(AbstractHttpConfigurer::disable);
+    @Order(1) // @Order를 사용하여 어떤 SecurityFilterChain을 먼저 수행 할지 지정한다. 아래 설정보다 우선적으로 보안 기능을 수행한다.
+    public SecurityFilterChain apiFilterChain(HttpSecurity http) throws Exception {
+        http.securityMatcher("/api/**")
+                .authorizeHttpRequests(authorize -> authorize.anyRequest().hasRole("ADMIN"))
+                .httpBasic(Customizer.withDefaults());
+        return http.build();
+    }
+
+    @Bean // @Order가 지정되지 않으면 마지막으로 간주 된다.
+    public SecurityFilterChain formLoginFilter(HttpSecurity http) throws Exception {
+        http.authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated()) // HttpSecurity가 /api/** 를 제외한 모든 URL에 적용된다.
+                .formLogin(Customizer.withDefaults());
         return http.build();
     }
 
