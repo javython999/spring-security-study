@@ -2658,3 +2658,62 @@ public class MultiHttpSecurityConfig {
   }
 }
 ```
+### Custom DSLs - HttpSecurity.with(AbstractHttpConfigurer)
+* SpringSecurity는 사용자 정의 DSL을 구현할 수 있도록 지원한다.
+* DSL을 구성하면 필터, 핸들러, 메서드, 속성 등을 한 곳에서 정의하여 처리할 수 있는 편리함을 제공한다.
+
+#### AbstractHttpConfigurer<AbstractHttpConfigurer, HttpSecurityBuilder>
+* 사용자 DSL을 구현하기 위해서 상속받는 추상 클래스로서 구현 클래스는 두 개의 메서드를 오버라이딩 한다.
+  * init(B builder) - HttpSecurity의 구성요소를 설정 및 공유하는 작업 등..
+  * configurer(B builder) - 공통 클래스를 구성 하거나 사용자 정의 필터를 생성하는 작업 등..
+
+#### API
+* HttpSecurity.with(C configurer, Customizer<C> customizer)
+  * configurer는 AbstractHttpConfigurer을 상속하고 DSL을 구현한 클래스가 들어간다.
+  * customizer는 DSL 구현 클래스에서 정의한 여러 API를 커스터마이징 한다.
+  * 동일한 클래스를 여러 번 설정하더라도 한번 만 적용 된다.
+
+#### 구현 코드
+
+```java
+import java.beans.Customizer;
+
+@Bean
+public SecurityFitlerChain fitlerChain(HttpSecurity http) {
+  http.authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
+          .fromLogin(Customizer.withDefaults());
+  
+  http.with(new MyCustomDsl(), dsl -> dsl.flag(true));
+  
+  // MyCustomDsl을 비활성화
+  http.with(new MyCustomDsl(), dsl -> dsl.disabled());
+  
+  return http.build();
+}
+```
+
+```java
+@Setter
+public class MyCustomDsl  extends AbstractHttpConfigurer<MyCustomDsl, HttpSecurity> {
+
+  private boolean flag;
+
+  @Override
+  public void init(HttpSecurity http) throws Exception {
+    super.init(http);
+  }
+
+  @Override
+  public void configure(HttpSecurity http) throws Exception {
+    MyCustomFilter myCustomFilter = new MyCustomFilter();
+    myCustomFilter.setFlag(flag);
+    http.addFilterAfter(myCustomFilter, SecurityContextHolderAwareRequestFilter.class);
+    super.configure(http);
+  }
+
+  public static MyCustomDsl customDsl() {
+    return new MyCustomDsl();
+  }
+
+}
+```
