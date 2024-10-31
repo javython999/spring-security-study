@@ -2632,3 +2632,29 @@ public Callable<Authentication> processUpload() {
 ```
 * 비동기 스레드가 수행하는 Callable 영역 내에서 자신의 ThreadLocal에 저장된 SecurityContext를 참조할 수 있으며 이는 부모 스레드가 가지고 있는 SecurityContext와 동일한 객체이다.
 * @Async나 다른 비동기 기술은 스프링 시큐리티와 통합되어 있지 않기 때문에 비동기 스레드에 SecurityContext가 적용되지 않는다.
+
+---
+## 고급 설정
+### 다중 보안 설정
+* SpringSecurity는 여러 SecurityFilterChain @Bean을 등록해서 다중 보안 기능을 구성할 수 있다.
+```java
+@Configuration
+@EnableWebSecurity
+public class MultiHttpSecurityConfig {
+    @Bean
+    @Order(1) // @Order를 사용하여 어떤 SecurityFilterChain을 먼저 수행 할지 지정한다. 아래 설정보다 우선적으로 보안 기능을 수행한다.
+    public SecurityFilterChain apiFilterChain(HttpSecurity http) throws Exception {
+        http.securityMatcher("/api/**")
+                .authorizeHttpRequests(authorize -> authorize.anyRequest().hasRole("ADMIN"))
+                .httpBasic(Customizer.withDefaults());
+        return http.build();
+    }
+
+  @Bean // @Order가 지정되지 않으면 마지막으로 간주 된다.
+  public SecurityFilterChain formLoginFilter(HttpSecurity http) throws Exception {
+    http.authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated()) // HttpSecurity가 /api/** 를 제외한 모든 URL에 적용된다.
+            .formLogin(Customizer.withDefaults());
+    return http.build();
+  }
+}
+```
