@@ -17,13 +17,15 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.authorizeRequests(auth -> auth
+        http.authorizeHttpRequests(auth -> auth
                 .requestMatchers("/user").hasRole("USER")
                 .requestMatchers("/db").hasRole("DB")
                 .requestMatchers("/admin").hasRole("ADMIN")
                 .anyRequest().authenticated())
-            .formLogin(Customizer.withDefaults())
-            .csrf(AbstractHttpConfigurer::disable);
+            .formLogin(Customizer.withDefaults());
+
+        http.with(MyCustomDsl.customDsl(), dsl -> dsl.setFlag(true));
+
         return http.build();
     }
 
